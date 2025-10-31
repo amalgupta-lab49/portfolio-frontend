@@ -37,6 +37,7 @@
   font-weight: 600;
   margin: 0;
   white-space: nowrap;
+  text-align: center;
 }
 
 .portfolio-summary {
@@ -861,6 +862,272 @@
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
   background: var(--accent-light);
+}
+
+/* Show Thinking controls and panel */
+.thinking-controls {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.thinking-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-bg);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.thinking-icon-button:hover {
+  background: var(--primary-bg);
+  color: var(--text-primary);
+}
+
+.thinking-icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.thinking-popover {
+  position: absolute;
+  right: 1rem;
+  z-index: 1000;
+  margin-top: 0.5rem;
+  width: min(900px, 90vw);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 0.75rem;
+  color: var(--text-primary);
+}
+
+.thinking-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.25rem 0.75rem 0.25rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 0.75rem;
+}
+
+.popover-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.thinking-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.analysis-action-button.secondary {
+  background: var(--secondary-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+/* Ensure long text wraps nicely and avoids horizontal scroll */
+.thinking-panel,
+.thinking-log,
+.thinking-item,
+.thinking-blocks,
+.thinking-code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.thinking-code {
+  white-space: pre-wrap; /* preserve newlines, wrap long lines */
+  background: var(--secondary-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Limit popover height with vertical scrolling only */
+.thinking-popover .thinking-panel {
+  max-height: 50vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.thinking-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.thinking-panel h4 {
+  margin: 0 0 0.75rem 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.thinking-log {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.thinking-item {
+  background: var(--primary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.thinking-item-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.thinking-time {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.thinking-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.thinking-blocks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.thinking-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.thinking-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  background: var(--secondary-bg);
+}
+
+.kind-text { background: rgba(124, 77, 255, 0.08); }
+.kind-bullets { background: rgba(46, 213, 115, 0.12); }
+.kind-code { background: rgba(52, 152, 219, 0.12); }
+.kind-tool { background: rgba(241, 196, 15, 0.16); }
+
+.thinking-item-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tiny-button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.tiny-button.ghost {
+  background: transparent;
+}
+
+.thinking-input {
+  width: 100%;
+  min-height: 80px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--secondary-bg);
+  color: var(--text-primary);
+  resize: vertical;
+}
+
+.tool-inputs {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.tool-input-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tool-input-row span {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.tool-input {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--secondary-bg);
+  color: var(--text-primary);
+}
+
+.thinking-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.thinking-list li {
+  margin: 0.25rem 0;
+  color: var(--text-primary);
+}
+
+.thinking-block-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.thinking-code {
+  margin: 0;
+  padding: 0.75rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 6px;
+  overflow: auto;
+  max-height: 220px;
+}
+
+@media (max-width: 1200px) {
+  .thinking-blocks {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Thinking Box Header */

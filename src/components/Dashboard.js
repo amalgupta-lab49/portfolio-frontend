@@ -91,6 +91,101 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [agentActiveTab, setAgentActiveTab] = useState('thesis');
+  const [showThinkingPopover, setShowThinkingPopover] = useState(false);
+  const [agentThoughtLog, setAgentThoughtLog] = useState([
+    {
+      id: 't1',
+      time: '09:40 AM',
+      title: 'Morning Briefing Generation',
+      kind: 'bullets',
+      prompt: `System: You are an AI portfolio manager.\nUser: Generate a concise morning briefing for the portfolio focusing on YTD performance vs benchmark and top 2 drivers. Include 1 actionable insight.\nContext: { ytdReturn: 12.3, benchmark: 10.0, drivers: ["AAPL", "MSFT"], risk: { techWeight: 37.2, threshold: 35 } }`,
+      bullets: [
+        'Portfolio is tracking 2.3% above benchmark YTD',
+        'Drivers: AAPL, MSFT momentum',
+        'Action: Trim Tech by 2-3% to reduce concentration (37.2% vs 35% target)'
+      ],
+      output: `Portfolio is tracking 2.3% above benchmark YTD. Primary drivers are AAPL and MSFT momentum. Insight: Consider trimming Technology exposure by 2-3% to reduce concentration risk as weight is 37.2% vs 35% target.`
+    },
+    {
+      id: 't2',
+      time: '09:45 AM',
+      title: 'Generate Rebalancing Snippet',
+      kind: 'code',
+      prompt: `Create a pseudo order plan to trim Tech by ~3% and reallocate to low beta holdings. Format as JSON.`,
+      code: {
+        language: 'json',
+        content: `{
+  "trim": [{"sector": "Technology", "percent": 3.0}],
+  "add": [
+    {"ticker": "XLU", "percent": 1.5},
+    {"ticker": "SHY", "percent": 1.5}
+  ]
+}`
+      },
+      output: 'Proposed trim/add plan in code block'
+    },
+    {
+      id: 't3',
+      time: '09:47 AM',
+      title: 'Volatility Alert Reasoning',
+      kind: 'text',
+      prompt: `Evaluate current portfolio volatility vs target and propose 1 mitigation using 30D realized volatility and beta`,
+      output: `Volatility (18.5%) exceeds target (15%). Suggest: increase allocation to lower beta names by 2-4% and introduce short-duration T-Bills to dampen variance.`
+    },
+    {
+      id: 't4',
+      time: '09:50 AM',
+      title: 'Risk Toolkit: Volatility Check',
+      kind: 'tool',
+      prompt: `Run risk toolkit check for realized volatility vs target`,
+      tool: {
+        name: 'risk.volatilityCheck',
+        inputs: { realizedVol: 18.5, targetVol: 15.0, beta: 1.2 },
+        result: 'Volatility exceeds target by 3.5 percentage points'
+      },
+      output: 'Toolkit confirms breach; mitigation required'
+    }
+  ]);
+
+  const [editingThoughtId, setEditingThoughtId] = useState(null);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [editToolInputs, setEditToolInputs] = useState({});
+
+  const beginEdit = (entry) => {
+    setEditingThoughtId(entry.id);
+    setEditPrompt(entry.prompt || '');
+    setEditToolInputs(entry.tool?.inputs ? { ...entry.tool.inputs } : {});
+  };
+
+  const cancelEdit = () => {
+    setEditingThoughtId(null);
+    setEditPrompt('');
+    setEditToolInputs({});
+  };
+
+  const saveEdit = (entry) => {
+    setAgentThoughtLog(prev => prev.map(e => {
+      if (e.id !== entry.id) return e;
+      if (e.kind === 'tool') {
+        return { ...e, prompt: editPrompt, tool: { ...e.tool, inputs: { ...editToolInputs } } };
+      }
+      return { ...e, prompt: editPrompt };
+    }));
+    setEditingThoughtId(null);
+  };
+
+  const rerunThinking = (entry) => {
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setAgentThoughtLog(prev => prev.map(e => {
+      if (e.id !== entry.id) return e;
+      return {
+        ...e,
+        time: timestamp,
+        output: `[Re-run ${timestamp}] ` + (e.kind === 'tool' ? 'Toolkit executed with inputs ' + JSON.stringify(editingThoughtId === e.id ? editToolInputs : e.tool?.inputs || {}) : 'Updated analysis based on new prompt')
+      };
+    }));
+  };
 
   const [agentActions, setAgentActions] = useState([
     {
@@ -470,140 +565,312 @@ function Dashboard() {
 
       <div className="dashboard-content">
         {isAgentMode ? (
-          <div className="agent-tiled-view">
-            <div className="agent-thinking-box">
-              <div className="thinking-header">
-                <h3>AI Portfolio Manager</h3>
-                <div className="status-indicator">
-                  <div className="status-dot"></div>
-                  <span>Active</span>
-                </div>
-              </div>
-              <div className="thinking-content">
-                <div className="agent-main-sections">
-                  <div className="thinking-message">
-                    <h4>Morning Portfolio Briefing</h4>
-                    <p>Portfolio is currently tracking 2.3% above benchmark YTD. Key positions AAPL and MSFT showing strong momentum.</p>
-                  </div>
-                  
-                  <div className="thinking-insights">
-                    <h4>Risk Alerts</h4>
-                    <table className="analysis-table">
-                      <tbody>
-                        <tr>
-                          <td>
-                            <p className="analysis-item">Technology sector exposure at 37.2% (threshold: 35%)</p>
-                          </td>
-                          <td className="action-button-cell">
-                            <button className="analysis-action-button">
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                              </svg>
-                              Review
-                            </button>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td>
-                            <p className="analysis-item">Portfolio volatility above target (18.5% vs 15%)</p>
-                          </td>
-                          <td className="action-button-cell">
-                            <button className="analysis-action-button">
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                              </svg>
-                              Optimize
-                            </button>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+          <>
+            <div className="dashboard-tabs agent-tabs">
+              <button 
+                className={`tab-button ${agentActiveTab === 'thesis' ? 'active' : ''}`}
+                onClick={() => setAgentActiveTab('thesis')}
+              >
+                Thesis Drift
+              </button>
+              <button 
+                className={`tab-button ${agentActiveTab === 'dummy1' ? 'active' : ''}`}
+                onClick={() => setAgentActiveTab('dummy1')}
+              >
+                Dummy 1
+              </button>
+              <button 
+                className={`tab-button ${agentActiveTab === 'dummy2' ? 'active' : ''}`}
+                onClick={() => setAgentActiveTab('dummy2')}
+              >
+                Dummy 2
+              </button>
+            </div>
 
-                  <div className="thinking-recommendations">
-                    <h4>Today's Actions</h4>
-                    <table className="analysis-table">
-                      <tbody>
-                        <tr>
-                          <td>
-                            <p className="analysis-item">Rebalance technology exposure</p>
-                          </td>
-                          <td className="action-button-cell">
-                            <button className="analysis-action-button">
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                              Execute
-                            </button>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td>
-                            <p className="analysis-item">Review earnings calendar for next week</p>
-                          </td>
-                          <td className="action-button-cell">
-                            <button className="analysis-action-button">
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                              Schedule
-                            </button>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="thinking-performance">
-                    <h4>Performance Metrics</h4>
-                    <div className="metrics-grid">
-                      <div className="metric-item">
-                        <span className="metric-label">YTD Return</span>
-                        <span className="metric-value positive">+12.3%</span>
-                      </div>
-                      <div className="metric-item">
-                        <span className="metric-label">Sharpe Ratio</span>
-                        <span className="metric-value">1.8</span>
-                      </div>
-                      <div className="metric-item">
-                        <span className="metric-label">Beta</span>
-                        <span className="metric-value">1.2</span>
-                      </div>
-                      <div className="metric-item">
-                        <span className="metric-label">Tracking Error</span>
-                        <span className="metric-value">2.1%</span>
-                      </div>
+            {agentActiveTab === 'thesis' && (
+              <div className="agent-tiled-view">
+                <div className="agent-thinking-box">
+                  <div className="thinking-header">
+                    <h3>AI Portfolio Manager</h3>
+                    <div className="status-indicator">
+                      <div className="status-dot"></div>
+                      <span>Active</span>
                     </div>
                   </div>
-                </div>
+                  <div className="thinking-controls">
+                    <button 
+                      className="thinking-icon-button"
+                      title="Show Thinking"
+                      aria-label="Show Thinking"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowThinkingPopover(!showThinkingPopover);
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="currentColor"/>
+                      </svg>
+                    </button>
+                    {showThinkingPopover && (
+                      <div className="thinking-popover" onClick={(e) => e.stopPropagation()}>
+                        <div className="thinking-popover-header">
+                          <span>Agent Thoughts (Mocks)</span>
+                          <button className="popover-close" onClick={() => setShowThinkingPopover(false)}>✕</button>
+                        </div>
+                        <div className="thinking-actions">
+                          <button 
+                            className="analysis-action-button secondary"
+                            onClick={() => {
+                              if (navigator?.clipboard) {
+                                navigator.clipboard.writeText(agentThoughtLog.map(x => x.prompt).join('\n\n---\n\n'));
+                              }
+                            }}
+                          >Copy Prompts</button>
+                          <button 
+                            className="analysis-action-button secondary"
+                            onClick={() => {
+                              if (navigator?.clipboard) {
+                                navigator.clipboard.writeText(agentThoughtLog.map(x => x.output).join('\n\n---\n\n'));
+                              }
+                            }}
+                          >Copy Outputs</button>
+                          <button 
+                            className="analysis-action-button secondary"
+                            onClick={() => {
+                              if (navigator?.clipboard) {
+                                const both = agentThoughtLog.map(x => `Title: ${x.title}\nTime: ${x.time}\n\nPrompt:\n${x.prompt}\n\nOutput:\n${x.output}`).join('\n\n================\n\n');
+                                navigator.clipboard.writeText(both);
+                              }
+                            }}
+                          >Copy All</button>
+                        </div>
+                        <div className="thinking-panel">
+                          <div className="thinking-log">
+                            {agentThoughtLog.map(entry => (
+                              <div key={entry.id} className="thinking-item">
+                                <div className="thinking-item-header">
+                                  <div className="thinking-item-meta">
+                                    <span className="thinking-time">{entry.time}</span>
+                                    <span className="thinking-title">{entry.title}</span>
+                                    <span className={`thinking-kind pill kind-${entry.kind}`}>{entry.kind}</span>
+                                  </div>
+                                  <div className="thinking-item-actions">
+                                    {editingThoughtId === entry.id ? (
+                                      <>
+                                        <button className="tiny-button" onClick={() => saveEdit(entry)}>Save</button>
+                                        <button className="tiny-button ghost" onClick={cancelEdit}>Cancel</button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button className="tiny-button" onClick={() => beginEdit(entry)}>Edit</button>
+                                        <button className="tiny-button" onClick={() => rerunThinking(entry)}>Re-run</button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
 
-                <div className="agent-action-log">
-                  <h4>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Recent Actions
-                  </h4>
-                  <div className="action-log-list">
-                    {agentActions.map(action => (
-                      <div key={action.id} className={`action-log-item ${action.type}`}>
-                        <div className="action-log-time">{action.time}</div>
-                        <div className="action-log-content">
-                          <div className="action-log-title">{action.title}</div>
-                          <div className="action-log-description">{action.description}</div>
-                          <div className="action-log-meta">
-                            {action.meta.map((tag, index) => (
-                              <span key={index}>{tag}</span>
+                                <div className="thinking-blocks">
+                                  <div className="thinking-block">
+                                    <div className="thinking-block-label">Prompt</div>
+                                    {editingThoughtId === entry.id ? (
+                                      <textarea className="thinking-input" value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} />
+                                    ) : (
+                                      <pre className="thinking-code"><code>{entry.prompt}</code></pre>
+                                    )}
+                                  </div>
+
+                                  {entry.kind === 'tool' && (
+                                    <div className="thinking-block">
+                                      <div className="thinking-block-label">Tool Inputs ({entry.tool?.name})</div>
+                                      {editingThoughtId === entry.id ? (
+                                        <div className="tool-inputs">
+                                          {Object.keys(editToolInputs).map((key) => (
+                                            <label key={key} className="tool-input-row">
+                                              <span>{key}</span>
+                                              <input
+                                                className="tool-input"
+                                                type="text"
+                                                value={String(editToolInputs[key])}
+                                                onChange={(e) => setEditToolInputs({ ...editToolInputs, [key]: e.target.value })}
+                                              />
+                                            </label>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <pre className="thinking-code"><code>{JSON.stringify(entry.tool?.inputs || {}, null, 2)}</code></pre>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {entry.kind === 'bullets' && (
+                                    <div className="thinking-block">
+                                      <div className="thinking-block-label">Key Points</div>
+                                      <ul className="thinking-list">
+                                        {(entry.bullets || []).map((b, idx) => (
+                                          <li key={idx}>{b}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+
+                                  {entry.kind === 'code' && (
+                                    <div className="thinking-block">
+                                      <div className="thinking-block-label">Code ({entry.code?.language || 'text'})</div>
+                                      <pre className="thinking-code"><code>{entry.code?.content || ''}</code></pre>
+                                    </div>
+                                  )}
+
+                                  <div className="thinking-block">
+                                    <div className="thinking-block-label">Output</div>
+                                    <pre className="thinking-code"><code>{entry.output}</code></pre>
+                                  </div>
+                                </div>
+                              </div>
                             ))}
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )}
+                  </div>
+                  <div className="thinking-content">
+                    <div className="agent-main-sections">
+                      <div className="thinking-message">
+                        <h4>Morning Portfolio Briefing</h4>
+                        <p>Portfolio is currently tracking 2.3% above benchmark YTD. Key positions AAPL and MSFT showing strong momentum.</p>
+                      </div>
+                      
+                      <div className="thinking-insights">
+                        <h4>Risk Alerts</h4>
+                        <table className="analysis-table">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <p className="analysis-item">Technology sector exposure at 37.2% (threshold: 35%)</p>
+                              </td>
+                              <td className="action-button-cell">
+                                <button className="analysis-action-button">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                  </svg>
+                                  Review
+                                </button>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <p className="analysis-item">Portfolio volatility above target (18.5% vs 15%)</p>
+                              </td>
+                              <td className="action-button-cell">
+                                <button className="analysis-action-button">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                  Optimize
+                                </button>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="thinking-recommendations">
+                        <h4>Today's Actions</h4>
+                        <table className="analysis-table">
+                          <tbody>
+                            <tr>
+                              <td>
+                                <p className="analysis-item">Rebalance technology exposure</p>
+                              </td>
+                              <td className="action-button-cell">
+                                <button className="analysis-action-button">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                  Execute
+                                </button>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td>
+                                <p className="analysis-item">Review earnings calendar for next week</p>
+                              </td>
+                              <td className="action-button-cell">
+                                <button className="analysis-action-button">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  Schedule
+                                </button>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="thinking-performance">
+                        <h4>Performance Metrics</h4>
+                        <div className="metrics-grid">
+                          <div className="metric-item">
+                            <span className="metric-label">YTD Return</span>
+                            <span className="metric-value positive">+12.3%</span>
+                          </div>
+                          <div className="metric-item">
+                            <span className="metric-label">Sharpe Ratio</span>
+                            <span className="metric-value">1.8</span>
+                          </div>
+                          <div className="metric-item">
+                            <span className="metric-label">Beta</span>
+                            <span className="metric-value">1.2</span>
+                          </div>
+                          <div className="metric-item">
+                            <span className="metric-label">Tracking Error</span>
+                            <span className="metric-value">2.1%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="agent-action-log">
+                      <h4>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Recent Actions
+                      </h4>
+                      <div className="action-log-list">
+                        {agentActions.map(action => (
+                          <div key={action.id} className={`action-log-item ${action.type}`}>
+                            <div className="action-log-time">{action.time}</div>
+                            <div className="action-log-content">
+                              <div className="action-log-title">{action.title}</div>
+                              <div className="action-log-description">{action.description}</div>
+                              <div className="action-log-meta">
+                                {action.meta.map((tag, index) => (
+                                  <span key={index}>{tag}</span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
+            )}
+
+            {agentActiveTab === 'dummy1' && (
+              <div className="agent-placeholder">
+                <p>Dummy 1</p>
+              </div>
+            )}
+
+            {agentActiveTab === 'dummy2' && (
+              <div className="agent-placeholder">
+                <p>Dummy 2</p>
+              </div>
+            )}
+          </>
         ) : (
           <>
             {activeTab === 'overview' && (
