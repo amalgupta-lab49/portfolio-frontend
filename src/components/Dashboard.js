@@ -112,6 +112,10 @@ function Dashboard() {
   const [copyNotification, setCopyNotification] = useState(null); // { x: number, y: number } or null
   const [biasPopover, setBiasPopover] = useState(null); // { x: number, y: number } or null
   const [biasInfoPopover, setBiasInfoPopover] = useState(null); // { metric: string, x: number, y: number, positionAbove: boolean } or null
+  const [showChatbot, setShowChatbot] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
 
   // Bias Sentinel definitions
   const biasDefinitions = {
@@ -300,6 +304,284 @@ function Dashboard() {
         prompt: `Analyze sector allocation and generate warning if any sector exceeds target allocation`,
         output: 'Technology sector exposure exceeds target allocation by 5%. Preparing rebalancing recommendations.'
       }
+    ],
+    thesisAtInception: [
+      {
+        id: 't1',
+        time: '10:15 AM',
+        title: 'Thesis at Inception Analysis',
+        kind: 'text',
+        prompt: `Analyze the original portfolio thesis at inception, including sector allocations, alpha targets, and sentiment vectors. Compare against current state to identify drift.`,
+        output: 'Thesis at inception established allocation targets across 5 sectors with specific alpha and Sharpe ratio goals. Initial sentiment vectors (v₀) captured baseline expectations for each sector.'
+      },
+      {
+        id: 't2',
+        time: '10:16 AM',
+        title: 'Sector Allocation Calculation',
+        kind: 'tool',
+        prompt: `Calculate sector allocation percentages from inception portfolio holdings`,
+        tool: {
+          name: 'portfolio.calculateSectorAllocation',
+          inputs: { date: '2023-01-15', sectors: ['Technology', 'Financial', 'Healthcare', 'Consumer', 'Utilities'] },
+          result: 'Allocation calculated: Tech 35%, Financial 25%, Healthcare 20%, Consumer 15%, Utilities 5%'
+        },
+        output: 'Sector allocation calculated for inception date. Technology sector had highest allocation at 35%.'
+      },
+      {
+        id: 't3',
+        time: '10:17 AM',
+        title: 'Sentiment Baseline Vector Generation',
+        kind: 'tool',
+        prompt: `Generate baseline sentiment vectors (v₀) for each sector using inception date market sentiment data`,
+        tool: {
+          name: 'sentiment.generateBaseline',
+          inputs: { date: '2023-01-15', sectors: ['Technology', 'Financial', 'Healthcare', 'Consumer', 'Utilities'] },
+          result: 'Baseline vectors generated: Tech [0.75, 0.25, 0.15], Financial [0.65, 0.20, 0.18], Healthcare [0.55, 0.30, 0.15], Consumer [0.40, 0.45, 0.20], Utilities [0.50, 0.35, 0.15]'
+        },
+        output: 'Baseline sentiment vectors (v₀) established for all sectors, capturing Accuracy, Precision, and Recall metrics at inception.'
+      }
+    ],
+    alphaDecay: [
+      {
+        id: 'ad1',
+        time: '10:20 AM',
+        title: 'Alpha Decay Calculation',
+        kind: 'text',
+        prompt: `Calculate alpha decay by comparing inception alpha values to present alpha values for each sector. Identify sectors with significant decay.`,
+        output: 'Alpha decay analysis shows Technology sector maintaining highest alpha (2.1% present vs 2.5% inception), while Consumer sector shows largest decay (0.9% present vs 1.2% inception).'
+      },
+      {
+        id: 'ad2',
+        time: '10:21 AM',
+        title: 'Time Duration Calculation',
+        kind: 'tool',
+        prompt: `Calculate time duration from inception date to present date`,
+        tool: {
+          name: 'utils.calculateDuration',
+          inputs: { startDate: '2023-01-15', endDate: '2024-12-20' },
+          result: 'Duration: 1 year, 11 months, 5 days'
+        },
+        output: 'Portfolio has been active for 1 year, 11 months, and 5 days since inception.'
+      },
+      {
+        id: 'ad3',
+        time: '10:22 AM',
+        title: 'Alpha Decay Visualization',
+        kind: 'code',
+        prompt: `Generate line graph visualization showing alpha decay from inception to present for selected sector`,
+        code: {
+          language: 'python',
+          content: `import matplotlib.pyplot as plt\nimport numpy as np\n\n# Alpha decay visualization\ninception_alpha = 2.5\npresent_alpha = 2.1\ndecay = present_alpha - inception_alpha\n\nplt.plot([0, 1], [inception_alpha, present_alpha], 'b--', linewidth=2)\nplt.scatter([0, 1], [inception_alpha, present_alpha], s=100)\nplt.xlabel('Time')\nplt.ylabel('Alpha (%)')\nplt.title('Alpha Decay: Inception vs Present')\nplt.grid(True)\nplt.show()`
+        },
+        output: 'Line graph generated showing alpha trajectory from inception to present, highlighting decay pattern.'
+      }
+    ],
+    sentimentDrift: [
+      {
+        id: 'sd1',
+        time: '10:25 AM',
+        title: 'Sentiment Drift Analysis',
+        kind: 'text',
+        prompt: `Analyze sentiment drift by comparing inception sentiment vectors (v₀) with today's sentiment vectors (vₜ) using cosine similarity. Identify sectors with significant sentiment changes.`,
+        output: 'Sentiment drift analysis reveals Technology sector maintains high similarity (0.97), while Consumer sector shows moderate drift (0.92). Cosine similarity metrics indicate overall sentiment stability.'
+      },
+      {
+        id: 'sd2',
+        time: '10:26 AM',
+        title: 'Cosine Similarity Calculation',
+        kind: 'tool',
+        prompt: `Calculate cosine similarity between inception and present sentiment vectors for each sector`,
+        tool: {
+          name: 'math.cosineSimilarity',
+          inputs: { 
+            v0: [0.75, 0.25, 0.15], 
+            vt: [0.70, 0.28, 0.18],
+            sector: 'Technology'
+          },
+          result: 'Cosine similarity: 0.97 (97% similarity)'
+        },
+        output: 'Technology sector sentiment maintains 97% similarity between inception and present, indicating minimal drift.'
+      },
+      {
+        id: 'sd3',
+        time: '10:27 AM',
+        title: 'Drift Metric Interpretation',
+        kind: 'bullets',
+        prompt: `Interpret drift metrics and provide insights on what cosine similarity values mean for portfolio management`,
+        bullets: [
+          'Cosine similarity > 0.95: Minimal drift, sentiment consistent',
+          'Cosine similarity 0.85-0.95: Moderate drift, monitor closely',
+          'Cosine similarity < 0.85: Significant drift, review thesis',
+          'Drift = 1 - cosine similarity, represents magnitude of change'
+        ],
+        output: 'Drift metrics indicate sentiment stability across most sectors. Consumer sector shows highest drift at 8% but remains within acceptable range.'
+      }
+    ],
+    turnoverRate: [
+      {
+        id: 'br1',
+        time: '11:00 AM',
+        title: 'Turnover Rate Analysis',
+        kind: 'text',
+        prompt: `Analyze portfolio turnover rate. Calculate annualized total trades divided by portfolio value. Identify if high turnover indicates overtrading bias.`,
+        output: 'Turnover rate calculated at 32%, which is below the 40% threshold for long-term portfolios. This suggests disciplined trading without overtrading bias.'
+      },
+      {
+        id: 'br2',
+        time: '11:01 AM',
+        title: 'Turnover Rate Calculation',
+        kind: 'tool',
+        prompt: `Calculate annualized turnover rate from trade history`,
+        tool: {
+          name: 'portfolio.calculateTurnover',
+          inputs: { period: 'annualized', trades: 1240, portfolioValue: 1000000 },
+          result: 'Turnover Rate: 32%'
+        },
+        output: 'Annualized turnover rate: 32% (1,240 trades × $100 avg / $1M portfolio value)'
+      }
+    ],
+    winHoldLossHold: [
+      {
+        id: 'bw1',
+        time: '11:05 AM',
+        title: 'Winning vs Losing Hold Time Analysis',
+        kind: 'text',
+        prompt: `Calculate ratio of average hold period for winning trades versus losing trades. Lower ratios indicate disposition effect (holding losers too long, selling winners too early).`,
+        output: 'Current ratio: 1.05x (winners held 5% longer than losers). This is below the 1.2x target, suggesting potential disposition effect bias.'
+      },
+      {
+        id: 'bw2',
+        time: '11:06 AM',
+        title: 'Hold Time Ratio Calculation',
+        kind: 'tool',
+        prompt: `Calculate average hold times for winning and losing trades`,
+        tool: {
+          name: 'portfolio.calculateHoldTimeRatio',
+          inputs: { winners: [45, 38, 52, 41], losers: [42, 40, 48, 38] },
+          result: 'Winners avg: 44 days, Losers avg: 42 days, Ratio: 1.05x'
+        },
+        output: 'Average hold time: Winners 44 days, Losers 42 days. Ratio: 1.05x indicates need to let winners run longer.'
+      }
+    ],
+    addToLoser: [
+      {
+        id: 'ba1',
+        time: '11:10 AM',
+        title: 'Add-to-Loser Pattern Analysis',
+        kind: 'text',
+        prompt: `Analyze percentage of times portfolio manager increases position size of losing positions without fresh thesis support. High percentage indicates averaging down bias.`,
+        output: 'Add-to-loser rate: 4.1% of all adds. This is below the 5% threshold, indicating disciplined position sizing without averaging down bias.'
+      },
+      {
+        id: 'ba2',
+        time: '11:11 AM',
+        title: 'Add-to-Loser Pattern Detection',
+        kind: 'tool',
+        prompt: `Identify and count add-to-loser trades from trade history`,
+        tool: {
+          name: 'bias.detectAddToLoser',
+          inputs: { trades: 1240, addsToLosers: 51, totalAdds: 1240 },
+          result: 'Add-to-loser rate: 4.1% (51 out of 1,240 adds)'
+        },
+        output: 'Analysis found 51 instances of adding to losing positions (4.1% of total adds), within acceptable range.'
+      }
+    ],
+    reentryAfterStop: [
+      {
+        id: 'bre1',
+        time: '11:15 AM',
+        title: 'Re-entry After Stop-Loss Analysis',
+        kind: 'text',
+        prompt: `Analyze ratio of trades where PM re-enters a position within 30 days of hitting stop-loss. High rate indicates revenge trading bias.`,
+        output: 'Re-entry rate: 8.5% of stop-loss exits. This is below the 10% threshold but should be monitored for revenge trading patterns.'
+      },
+      {
+        id: 'bre2',
+        time: '11:16 AM',
+        title: 'Re-entry Pattern Detection',
+        kind: 'tool',
+        prompt: `Detect re-entries within 30 days of stop-loss exits`,
+        tool: {
+          name: 'bias.detectReentry',
+          inputs: { stopLossExits: 120, reentriesWithin30Days: 10 },
+          result: 'Re-entry rate: 8.3% (10 out of 120 stop-loss exits)'
+        },
+        output: 'Detected 10 re-entries within 30 days of stop-loss (8.3% rate). Pattern analysis suggests some emotional trading.'
+      },
+      {
+        id: 'bre3',
+        time: '11:17 AM',
+        title: 'Revenge Trading Pattern Identification',
+        kind: 'bullets',
+        prompt: `Identify specific patterns that indicate revenge trading behavior`,
+        bullets: [
+          'Re-entry within 12 days of stop-loss exit',
+          'Increased position size on re-entry',
+          'No fundamental change in thesis',
+          'Negative average return on revenge trades'
+        ],
+        output: 'Pattern analysis reveals potential revenge trading: AAPL re-entered within 12 days with 20% larger position, resulting in -3.7% avg return.'
+      }
+    ],
+    alertRate: [
+      {
+        id: 'bal1',
+        time: '11:20 AM',
+        title: 'Bias Alert Trigger Rate Analysis',
+        kind: 'text',
+        prompt: `Calculate number of bias alerts per 100 positions per month. High rate indicates frequent bias triggers requiring attention.`,
+        output: 'Alert rate: 0.7 per 100 positions/month. This is below the 1.0 threshold, indicating effective bias monitoring without excessive alerts.'
+      },
+      {
+        id: 'bal2',
+        time: '11:21 AM',
+        title: 'Alert Rate Calculation',
+        kind: 'tool',
+        prompt: `Calculate bias alert trigger rate from alert history`,
+        tool: {
+          name: 'bias.calculateAlertRate',
+          inputs: { alerts: 7, positions: 1000, months: 1 },
+          result: 'Alert rate: 0.7 per 100 positions/month'
+        },
+        output: 'Calculated alert rate: 7 alerts across 1,000 positions over 1 month = 0.7 per 100 positions/month.'
+      }
+    ],
+    overrideRate: [
+      {
+        id: 'bo1',
+        time: '11:25 AM',
+        title: 'PM Override Rate Analysis',
+        kind: 'text',
+        prompt: `Analyze percentage of bias alerts overridden by portfolio manager. Very high override suggests PM ignoring tool; very low suggests false positives.`,
+        output: 'Override rate: 46%, within the 30-70% sweet-spot. This indicates balanced tool usage - PM considers alerts but maintains judgment.'
+      },
+      {
+        id: 'bo2',
+        time: '11:26 AM',
+        title: 'Override Pattern Analysis',
+        kind: 'tool',
+        prompt: `Calculate override rate from alert and override history`,
+        tool: {
+          name: 'bias.calculateOverrideRate',
+          inputs: { alerts: 100, overrides: 46 },
+          result: 'Override rate: 46%'
+        },
+        output: 'Override rate: 46 out of 100 alerts overridden (46%). This falls within the optimal range, indicating effective tool integration.'
+      },
+      {
+        id: 'bo3',
+        time: '11:27 AM',
+        title: 'Override Rate Interpretation',
+        kind: 'bullets',
+        prompt: `Interpret override rate patterns and their implications`,
+        bullets: [
+          '30-70% sweet-spot: Balanced tool usage',
+          '>70%: PM may be ignoring tool recommendations',
+          '<30%: Possible false positives or over-reliance',
+          'Pattern analysis: Consistent override rate suggests stable decision-making'
+        ],
+        output: 'Current override rate of 46% indicates healthy balance between tool recommendations and PM judgment.'
+      }
     ]
   });
 
@@ -338,63 +620,131 @@ function Dashboard() {
   const getMockReasoningText = (entry) => {
     if (entry.kind === 'tool') {
       return [
-        "Analyzing tool requirements...",
-        "Preparing tool inputs...",
-        "Executing tool: " + (entry.tool?.name || 'unknown'),
-        "Processing results...",
-        "Validating output format...",
-        "Tool execution completed successfully."
+        " Analyzing tool requirements...",
+        " Preparing tool inputs...",
+        " Executing tool: " + (entry.tool?.name || 'unknown'),
+        " Processing results...",
+        " Validating output format...",
+        " Tool execution completed successfully."
       ];
     } else if (entry.kind === 'bullets') {
       return [
-        "Processing portfolio data...",
-        "Identifying key performance indicators...",
-        "Analyzing benchmark comparison...",
-        "Extracting actionable insights...",
-        "Formatting key points...",
-        "Briefing generation complete."
+        " Processing portfolio data...",
+        " Identifying key performance indicators...",
+        " Analyzing benchmark comparison...",
+        " Extracting actionable insights...",
+        " Formatting key points...",
+        " Briefing generation complete."
       ];
     } else if (entry.kind === 'code') {
       return [
-        "Parsing request parameters...",
-        "Generating code structure...",
-        "Applying business logic...",
-        "Formatting output...",
-        "Validating syntax...",
-        "Code generation complete."
+        " Parsing request parameters...",
+        " Generating code structure...",
+        " Applying business logic...",
+        " Formatting output...",
+        " Validating syntax...",
+        " Code generation complete."
       ];
     } else {
       return [
-        "Processing input...",
-        "Analyzing context...",
-        "Applying portfolio management rules...",
-        "Evaluating market conditions...",
-        "Generating response...",
-        "Analysis complete."
+        " Processing input...",
+        " Analyzing context...",
+        " Applying portfolio management rules...",
+        " Evaluating market conditions...",
+        " Generating response...",
+         "Analysis complete."
       ];
     }
   };
 
-  const rerunThinking = (entry, section) => {
-    // If currently editing this entry, save the prompt first
-    if (editingThoughtId === entry.id && editPrompt) {
-      const updatedEntry = {
-        ...entry,
-        prompt: editPrompt,
-        ...(entry.kind === 'tool' && editToolInputs ? { tool: { ...entry.tool, inputs: { ...editToolInputs } } } : {})
-      };
-      setSectionThoughtLogs(prev => ({
-        ...prev,
-        [section]: prev[section].map(e => e.id === entry.id ? updatedEntry : e)
-      }));
-      entry = updatedEntry;
+  const generateDynamicOutput = (entry, finalInputs) => {
+    if (entry.kind === 'tool') {
+      const toolName = entry.tool?.name || '';
+      const inputs = finalInputs || entry.tool?.inputs || {};
+      
+      // Generate meaningful output based on tool type and inputs
+      if (toolName.includes('volatility') || toolName.includes('Volatility')) {
+        const realizedVol = inputs.realizedVol || inputs.realizedVolatility;
+        const targetVol = inputs.targetVol || inputs.targetVolatility;
+        const beta = inputs.beta;
+        if (realizedVol && targetVol) {
+          const diff = realizedVol - targetVol;
+          const status = diff > 0 ? 'exceeds' : 'below';
+          return `Volatility analysis: Realized volatility (${realizedVol}%) is ${Math.abs(diff).toFixed(1)}% ${status} target (${targetVol}%).${beta ? ` Portfolio beta: ${beta}.` : ''} ${diff > 0 ? 'Mitigation recommended.' : 'Within acceptable range.'}`;
+        }
+      } else if (toolName.includes('Sharpe') || toolName.includes('sharpe')) {
+        const riskFreeRate = inputs.riskFreeRate;
+        const portfolioReturn = inputs.portfolioReturn || inputs.return;
+        const volatility = inputs.volatility || inputs.vol;
+        if (riskFreeRate !== undefined && portfolioReturn !== undefined && volatility !== undefined) {
+          const sharpe = ((portfolioReturn - riskFreeRate) / volatility).toFixed(2);
+          const assessment = sharpe > 1.5 ? 'excellent' : sharpe > 1.0 ? 'good' : sharpe > 0.5 ? 'moderate' : 'poor';
+          return `Sharpe Ratio calculated: ${sharpe} (${assessment} risk-adjusted return). Based on risk-free rate ${riskFreeRate}%, portfolio return ${portfolioReturn}%, and volatility ${volatility}%.`;
+        }
+      } else if (toolName.includes('YTD') || toolName.includes('ytd')) {
+        const startDate = inputs.startDate;
+        const endDate = inputs.endDate;
+        const benchmark = inputs.benchmark;
+        if (startDate && endDate) {
+          return `YTD Return calculated from ${startDate} to ${endDate}.${benchmark ? ` Benchmark: ${benchmark}.` : ''}`;
+        }
+      } else if (toolName.includes('beta') || toolName.includes('Beta')) {
+        const beta = inputs.beta || inputs.portfolioBeta;
+        if (beta !== undefined) {
+          const assessment = beta > 1.2 ? 'aggressive' : beta > 0.8 ? 'moderate' : 'defensive';
+          return `Portfolio Beta calculated: ${beta.toFixed(2)} (${assessment} risk profile).`;
+        }
+      } else if (toolName.includes('schedule') || toolName.includes('Schedule') || toolName.includes('calendar')) {
+        const timeHorizon = inputs.timeHorizon;
+        const focus = inputs.focus;
+        return `Calendar review scheduled${timeHorizon ? ` for ${timeHorizon}` : ''}.${focus ? ` Focus: ${focus.replace(/_/g, ' ')}.` : ''}`;
+      }
+      
+      // Generic tool output with inputs
+      const inputStr = Object.keys(inputs).map(k => `${k}: ${inputs[k]}`).join(', ');
+      return `Tool executed successfully. Inputs: ${inputStr || 'none'}.`;
+    } else if (entry.kind === 'bullets') {
+      // Extract key values from prompt if possible
+      const prompt = entry.prompt || '';
+      if (prompt.includes('YTD') || prompt.includes('benchmark')) {
+        return 'Portfolio briefing generated with updated metrics and actionable insights based on current portfolio performance.';
+      }
+      return 'Portfolio briefing generated with updated key points and recommendations.';
+    } else if (entry.kind === 'text') {
+      const prompt = entry.prompt || '';
+      if (prompt.toLowerCase().includes('volatility')) {
+        return 'Risk analysis updated: Volatility assessment revised based on current market conditions and portfolio composition.';
+      } else if (prompt.toLowerCase().includes('exposure') || prompt.toLowerCase().includes('rebalance')) {
+        return 'Rebalancing analysis updated: Sector exposure recommendations revised based on current allocations and target thresholds.';
+      } else if (prompt.toLowerCase().includes('performance')) {
+        return 'Performance analysis updated: Metrics recalculated based on latest portfolio data and market conditions.';
+      }
+      return 'Analysis updated based on revised inputs and current portfolio context.';
+    } else {
+      return 'Analysis complete with updated results.';
     }
+  };
+
+  const rerunThinking = (entry, section) => {
+    // Capture current editing state
+    const isEditing = editingThoughtId === entry.id;
+    const currentEditPrompt = isEditing ? editPrompt : entry.prompt;
+    const currentEditInputs = (isEditing && entry.kind === 'tool' && editToolInputs && Object.keys(editToolInputs).length > 0) 
+      ? editToolInputs 
+      : entry.tool?.inputs || {};
+    
+    // Create updated entry with current edits
+    const updatedEntry = isEditing ? {
+      ...entry,
+      prompt: currentEditPrompt,
+      ...(entry.kind === 'tool' ? { tool: { ...entry.tool, inputs: currentEditInputs } } : {})
+    } : entry;
     
     // Start thinking animation
     setThinkingEntry({ section, entryId: entry.id });
     setThinkingText('');
     
-    const mockLines = getMockReasoningText(entry);
+    const mockLines = getMockReasoningText(updatedEntry);
     let lineIndex = 0;
     let charIndex = 0;
     
@@ -406,11 +756,19 @@ function Dashboard() {
           ...prev,
           [section]: prev[section].map(e => {
             if (e.id !== entry.id) return e;
-            const finalInputs = (editingThoughtId === entry.id && e.kind === 'tool') ? editToolInputs : e.tool?.inputs || {};
+            
+            // Use the updated entry with edits
+            const finalEntry = {
+              ...updatedEntry,
+              prompt: currentEditPrompt,
+              ...(updatedEntry.kind === 'tool' ? { tool: { ...updatedEntry.tool, inputs: currentEditInputs } } : {})
+            };
+            
+            const dynamicOutput = generateDynamicOutput(finalEntry, currentEditInputs);
             return {
-              ...e,
+              ...finalEntry,
               time: timestamp,
-              output: `[Re-run ${timestamp}] ` + (e.kind === 'tool' ? 'Toolkit executed with inputs ' + JSON.stringify(finalInputs) : 'Updated analysis based on new prompt')
+              output: `[Re-run ${timestamp}] ${dynamicOutput}`
             };
           })
         }));
@@ -468,6 +826,49 @@ function Dashboard() {
       }
     }
   }, [thinkingText, thinkingEntry]);
+
+  // Auto-scroll chat messages to bottom
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      const messagesElement = document.querySelector('.chatbot-messages');
+      if (messagesElement) {
+        messagesElement.scrollTop = messagesElement.scrollHeight;
+      }
+    }
+  }, [chatMessages]);
+
+  // Close chatbot when agent mode is turned off
+  useEffect(() => {
+    if (!isAgentMode && showChatbot) {
+      setShowChatbot(false);
+    }
+  }, [isAgentMode, showChatbot]);
+
+  const handleSendMessage = () => {
+    if (chatInput.trim()) {
+      setChatMessages([...chatMessages, { role: 'user', content: chatInput }]);
+      // Simulate agent response
+      setTimeout(() => {
+        setChatMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: 'I understand your question about this analysis. Let me help you explore this further...' 
+        }]);
+      }, 1000);
+      setChatInput('');
+    }
+  };
+
+  const handleChatInputKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleCloseChatbot = () => {
+    setShowChatbot(false);
+    setIsChatExpanded(false);
+  };
 
   const handleSectionContextMenu = (e, section) => {
     e.preventDefault();
@@ -548,6 +949,41 @@ function Dashboard() {
       showCopyNotification(e);
     };
 
+    const handleAskAgent = () => {
+      // Format all content similar to copyAll
+      const formatted = logs.map((x, index) => {
+        let entry = `=== Entry ${index + 1}: ${x.title} ===\nTime: ${x.time}\n\nPROMPT:\n${x.prompt}`;
+        
+        if (x.kind === 'tool' && x.tool?.inputs) {
+          entry += `\n\nTOOL INPUTS:\n${JSON.stringify(x.tool.inputs, null, 2)}`;
+        }
+        
+        if (x.kind === 'bullets' && x.bullets) {
+          entry += `\n\nKEY POINTS:\n${x.bullets.map(b => `- ${b}`).join('\n')}`;
+        }
+        
+        if (x.kind === 'code' && x.code?.content) {
+          entry += `\n\nCODE (${x.code.language}):\n${x.code.content}`;
+        }
+        
+        entry += `\n\nOUTPUT:\n${x.output}`;
+        return entry;
+      }).join('\n\n\n');
+      
+      // Close all popovers
+      setShowThinkingPopover(null);
+      setContextMenu(null);
+      setBiasPopover(null);
+      setBiasInfoPopover(null);
+      
+      // Set chat input with formatted content
+      setChatInput(formatted);
+      
+      // Show chatbot
+      setShowChatbot(true);
+      setChatMessages([]);
+    };
+
     return (
       <div className="thinking-popover-centered" onClick={(e) => e.stopPropagation()}>
         <div className="thinking-popover-overlay" onClick={() => setShowThinkingPopover(null)}></div>
@@ -575,6 +1011,17 @@ function Dashboard() {
             className="analysis-action-button secondary"
             onClick={copyAll}
           >Copy All</button>
+          <button 
+            className="analysis-action-button ask-agent-button"
+            onClick={handleAskAgent}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              <line x1="9" y1="10" x2="15" y2="10"></line>
+              <line x1="12" y1="7" x2="12" y2="13"></line>
+            </svg>
+            Ask Agent
+          </button>
         </div>
         <div className="thinking-panel">
           <div className="thinking-log">
@@ -694,6 +1141,74 @@ function Dashboard() {
         >
           Show Reasoning
         </button>
+      </div>
+    );
+  };
+
+  const renderChatbot = () => {
+    if (!showChatbot || !isAgentMode) return null;
+    
+    return (
+      <div className="chatbot-panel">
+        <div className="chatbot-header">
+          <div className="chatbot-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>AI Agent</span>
+          </div>
+          <button className="chatbot-close" onClick={handleCloseChatbot}>
+            ✕
+          </button>
+        </div>
+        <div className="chatbot-messages">
+          {chatMessages.length === 0 ? (
+            <div className="chatbot-welcome">
+              <p>Ask me anything about this analysis...</p>
+            </div>
+          ) : (
+            chatMessages.map((msg, index) => (
+              <div key={index} className={`chat-message ${msg.role}`}>
+                <div className="message-content">{msg.content}</div>
+              </div>
+            ))
+          )}
+        </div>
+        <div className={`chatbot-input-container ${isChatExpanded ? 'expanded' : ''}`}>
+          <textarea
+            className="chatbot-input"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={handleChatInputKeyDown}
+            placeholder="Ask the agent..."
+            rows={isChatExpanded ? 8 : 3}
+          />
+          <div className="chatbot-input-actions">
+            <button
+              className="chatbot-expand-btn"
+              onClick={() => setIsChatExpanded(!isChatExpanded)}
+              aria-label={isChatExpanded ? 'Collapse' : 'Expand'}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {isChatExpanded ? (
+                  <path d="M18 15l-6-6-6 6"/>
+                ) : (
+                  <path d="M6 9l6 6 6-6"/>
+                )}
+              </svg>
+            </button>
+            <button
+              className="chatbot-send-btn"
+              onClick={handleSendMessage}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+              Send
+            </button>
+          </div>
+        </div>
       </div>
     );
   };
@@ -1144,52 +1659,7 @@ function Dashboard() {
           </div>
         </div>
         {isAgentMode ? (
-          <div className={`collapsible-panel portfolio-panel ${!isPortfolioPanelExpanded ? 'collapsed' : ''}`}>
-            <div 
-              className="panel-header"
-              onClick={() => setIsPortfolioPanelExpanded(!isPortfolioPanelExpanded)}
-            >
-              <h2 className="panel-title">Portfolio Dashboard</h2>
-              <svg 
-                className={`panel-arrow ${isPortfolioPanelExpanded ? 'expanded' : ''}`}
-                width="16" 
-                height="16" 
-                viewBox="0 0 16 16" 
-                fill="none"
-              >
-                <path 
-                  d="M4 6L8 10L12 6" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            <div className={`panel-content portfolio-panel-content ${isPortfolioPanelExpanded ? 'expanded' : ''}`}>
-              <div className="portfolio-summary">
-                <div className="summary-item">
-                  <span className="label">Total Value</span>
-                  <span className="value">${selectedPortfolio.totalValue.toLocaleString()}</span>
-                </div>
-                <div className="summary-item">
-                  <span className="label">Daily Change</span>
-                  <span className={`value ${selectedPortfolio.dailyChange >= 0 ? 'positive' : 'negative'}`}>
-                    {selectedPortfolio.dailyChange >= 0 ? '+' : ''}${selectedPortfolio.dailyChange.toLocaleString()}
-                    ({selectedPortfolio.dailyChangePercent.toFixed(2)}%)
-                  </span>
-                </div>
-                <div className="summary-item">
-                  <span className="label">Portfolio Beta</span>
-                  <span className="value">{selectedPortfolio.riskMetrics.beta.toFixed(2)}</span>
-                </div>
-                <div className="summary-item">
-                  <span className="label">Sharpe Ratio</span>
-                  <span className="value">{selectedPortfolio.riskMetrics.sharpeRatio.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          null
         ) : (
           <div className="portfolio-summary">
             <div className="summary-item">
@@ -1250,7 +1720,8 @@ function Dashboard() {
         </div>
       )}
 
-      <div className="dashboard-content">
+      <div className="dashboard-content-wrapper">
+        <div className="dashboard-content">
         {isAgentMode ? (
           <>
             <div className="dashboard-tabs agent-tabs">
@@ -1275,7 +1746,9 @@ function Dashboard() {
             </div>
 
             {agentActiveTab === 'thesis' && (
-              <div className="agent-tiled-view">
+              <div className={`agent-tab-content ${showChatbot ? 'with-chatbot' : ''}`}>
+                <div className="agent-tab-main">
+                  <div className="agent-tiled-view">
                 {renderContextMenu()}
                 {copyNotification && (
                   <div 
@@ -1441,12 +1914,34 @@ function Dashboard() {
                       </div>
                     </div>
                   </div>
+                  </div>
                 </div>
+                </div>
+                {renderChatbot()}
               </div>
             )}
 
             {agentActiveTab === 'dummy1' && (
+              <div className={`agent-tab-content ${showChatbot ? 'with-chatbot' : ''}`}>
+                <div className="agent-tab-main">
               <div className="thesis-drift-section">
+                {renderContextMenu()}
+                {copyNotification && (
+                  <div 
+                    className="copy-notification"
+                    style={{
+                      position: 'fixed',
+                      left: `${copyNotification.x + 10}px`,
+                      top: `${copyNotification.y - 10}px`,
+                      zIndex: 10000
+                    }}
+                  >
+                    ✓ Copied to clipboard
+                  </div>
+                )}
+                {showThinkingPopover === 'thesisAtInception' && renderThinkingPopover('thesisAtInception', 'Thesis at Inception')}
+                {showThinkingPopover === 'alphaDecay' && renderThinkingPopover('alphaDecay', 'Alpha Decay Analysis')}
+                {showThinkingPopover === 'sentimentDrift' && renderThinkingPopover('sentimentDrift', 'Sentiment Drift Analysis')}
                 <div className={`collapsible-panel ${!isThesisPanelExpanded ? 'collapsed' : ''}`}>
                   <div 
                     className="panel-header"
@@ -1471,7 +1966,10 @@ function Dashboard() {
                   </div>
                   <div className={`panel-content ${isThesisPanelExpanded ? 'expanded' : ''}`}>
                     <div className="thesis-table-container">
-                    <div className="thesis-table-wrapper">
+                    <div 
+                      className="thesis-table-wrapper section-context"
+                      onContextMenu={(e) => handleSectionContextMenu(e, 'thesisAtInception')}
+                    >
                       <h2 className="thesis-section-heading">Thesis at Inception</h2>
                       <table className="thesis-table">
                         <thead>
@@ -1596,7 +2094,10 @@ function Dashboard() {
               <div className="alpha-decay-section">
                 <h2 className="alpha-decay-heading">Alpha Decay: Inception vs Present</h2>
                 <div className="alpha-decay-container">
-                  <div className="alpha-decay-table-wrapper">
+                  <div 
+                    className="alpha-decay-table-wrapper section-context"
+                    onContextMenu={(e) => handleSectionContextMenu(e, 'alphaDecay')}
+                  >
                     <div className="alpha-decay-content">
                       <table className="alpha-decay-table">
                         <thead>
@@ -1647,7 +2148,10 @@ function Dashboard() {
                     </div>
                   </div>
                   {selectedAlphaDecayRow && (
-                    <div className="alpha-decay-graph-wrapper">
+                    <div 
+                      className="alpha-decay-graph-wrapper section-context"
+                      onContextMenu={(e) => handleSectionContextMenu(e, 'alphaDecay')}
+                    >
                       <div className="alpha-decay-graph">
                         <div className="decay-graph-container">
                           {(() => {
@@ -1766,7 +2270,10 @@ function Dashboard() {
               <div className="sentiment-drift-section">
                 <h2 className="alpha-decay-heading">Sentiment Drift Since Inception</h2>
                 <div className="alpha-decay-container">
-                  <div className="alpha-decay-table-wrapper">
+                  <div 
+                    className="alpha-decay-table-wrapper section-context"
+                    onContextMenu={(e) => handleSectionContextMenu(e, 'sentimentDrift')}
+                  >
                     <div className="alpha-decay-content">
                       <table className="alpha-decay-table sentiment-drift-table">
                         <thead>
@@ -1825,17 +2332,45 @@ function Dashboard() {
                 </div>
               </div>
             </div>
+            </div>
+            {renderChatbot()}
+          </div>
             )}
 
             {agentActiveTab === 'dummy2' && (
+              <div className={`agent-tab-content ${showChatbot ? 'with-chatbot' : ''}`}>
+                <div className="agent-tab-main">
               <div className="bias-sentinel">
+                {renderContextMenu()}
+                {copyNotification && (
+                  <div 
+                    className="copy-notification"
+                    style={{
+                      position: 'fixed',
+                      left: `${copyNotification.x + 10}px`,
+                      top: `${copyNotification.y - 10}px`,
+                      zIndex: 10000
+                    }}
+                  >
+                    ✓ Copied to clipboard
+                  </div>
+                )}
+                {showThinkingPopover === 'turnoverRate' && renderThinkingPopover('turnoverRate', 'Turnover Rate Analysis')}
+                {showThinkingPopover === 'winHoldLossHold' && renderThinkingPopover('winHoldLossHold', 'Winning Hold ÷ Losing Hold Analysis')}
+                {showThinkingPopover === 'addToLoser' && renderThinkingPopover('addToLoser', 'Add-to-Loser Analysis')}
+                {showThinkingPopover === 'reentryAfterStop' && renderThinkingPopover('reentryAfterStop', 'Re-entry After Stop-Loss Analysis')}
+                {showThinkingPopover === 'alertRate' && renderThinkingPopover('alertRate', 'Bias Alert Trigger Rate Analysis')}
+                {showThinkingPopover === 'overrideRate' && renderThinkingPopover('overrideRate', 'PM Override Rate Analysis')}
                 <div className="bias-header">
                   <h2>Bias Sentinel</h2>
                   <p className="bias-sub">Live monitors of behavioral patterns against best-practice guardrails</p>
                 </div>
 
                 <div className="bias-grid">
-                  <div className="bias-card">
+                  <div 
+                    className="bias-card section-context"
+                    onContextMenu={(e) => handleSectionContextMenu(e, 'turnoverRate')}
+                  >
                     <div className="metric-title">
                       Turnover Rate %
                       <button
@@ -1854,7 +2389,10 @@ function Dashboard() {
                     <div className="meter"><div className={`meter-fill ${biasStatus.turnoverRate(biasMetrics.turnoverRatePct)}`} style={{ width: `${Math.min(100, biasMetrics.turnoverRatePct)}%` }} /></div>
                   </div>
 
-                  <div className="bias-card">
+                  <div 
+                    className="bias-card section-context"
+                    onContextMenu={(e) => handleSectionContextMenu(e, 'winHoldLossHold')}
+                  >
                     <div className="metric-title">
                       Winning Hold ÷ Losing Hold
                       <button
@@ -1873,7 +2411,10 @@ function Dashboard() {
                     <div className="meter"><div className={`meter-fill ${biasStatus.winHoldLossHold(biasMetrics.winHoldToLossHold)}`} style={{ width: `${Math.min(100, (biasMetrics.winHoldToLossHold / 2.0) * 100)}%` }} /></div>
                   </div>
 
-                  <div className="bias-card">
+                  <div 
+                    className="bias-card section-context"
+                    onContextMenu={(e) => handleSectionContextMenu(e, 'addToLoser')}
+                  >
                     <div className="metric-title">
                       Add-to-Loser %
                       <button
@@ -1892,7 +2433,10 @@ function Dashboard() {
                     <div className="meter"><div className={`meter-fill ${biasStatus.addToLoser(biasMetrics.addToLoserPct)}`} style={{ width: `${Math.min(100, biasMetrics.addToLoserPct)}%` }} /></div>
                   </div>
 
-                  <div className="bias-card">
+                  <div 
+                    className="bias-card section-context"
+                    onContextMenu={(e) => handleSectionContextMenu(e, 'reentryAfterStop')}
+                  >
                     <div className="metric-title">
                       Re-entry AFTER Stop-Loss %
                       <button
@@ -1932,7 +2476,10 @@ function Dashboard() {
                     <div className="meter"><div className={`meter-fill ${biasStatus.reentryAfterStop(biasMetrics.reentryAfterStopPct)}`} style={{ width: `${Math.min(100, biasMetrics.reentryAfterStopPct)}%` }} /></div>
                   </div>
 
-                  <div className="bias-card">
+                  <div 
+                    className="bias-card section-context"
+                    onContextMenu={(e) => handleSectionContextMenu(e, 'alertRate')}
+                  >
                     <div className="metric-title">
                       Bias Alert Trigger Rate
                       <button
@@ -1951,7 +2498,10 @@ function Dashboard() {
                     <div className="meter"><div className={`meter-fill ${biasStatus.alertRate(biasMetrics.biasAlertRatePer100)}`} style={{ width: `${Math.min(100, (biasMetrics.biasAlertRatePer100 / 2.0) * 100)}%` }} /></div>
                   </div>
 
-                  <div className="bias-card">
+                  <div 
+                    className="bias-card section-context"
+                    onContextMenu={(e) => handleSectionContextMenu(e, 'overrideRate')}
+                  >
                     <div className="metric-title">
                       PM Override Rate
                       <button
@@ -2032,6 +2582,9 @@ function Dashboard() {
                 document.body
               )}
               </div>
+              </div>
+              {renderChatbot()}
+            </div>
             )}
           </>
         ) : (
@@ -2253,6 +2806,7 @@ function Dashboard() {
             )}
           </>
         )}
+        </div>
       </div>
     </div>
   );
