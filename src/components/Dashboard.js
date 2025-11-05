@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import axios from 'axios';
 import './Dashboard.css';
 
@@ -95,20 +96,51 @@ function Dashboard() {
   const [thesisData, setThesisData] = useState({
     inceptionDate: new Date('2023-01-15'), // Example inception date
     sectors: [
-      { sector: 'Technology', weight: 35, alpha: 2.5, sharpeRatio: 1.8, targetAlpha: 3.0, targetSharpe: 2.0, presentAlpha: 2.1 },
-      { sector: 'Financial', weight: 25, alpha: 1.8, sharpeRatio: 1.6, targetAlpha: 2.2, targetSharpe: 1.8, presentAlpha: 1.5 },
-      { sector: 'Healthcare', weight: 20, alpha: 1.5, sharpeRatio: 1.4, targetAlpha: 1.8, targetSharpe: 1.6, presentAlpha: 1.2 },
-      { sector: 'Consumer', weight: 15, alpha: 1.2, sharpeRatio: 1.3, targetAlpha: 1.5, targetSharpe: 1.5, presentAlpha: 0.9 },
-      { sector: 'Utilities', weight: 5, alpha: 0.5, sharpeRatio: 1.1, targetAlpha: 0.8, targetSharpe: 1.2, presentAlpha: 0.4 }
+      { sector: 'Technology', weight: 35, alpha: 2.5, sharpeRatio: 1.8, targetAlpha: 3.0, targetSharpe: 2.0, presentAlpha: 2.1, sentiment: 'Bullish', baselineVector: [0.75, 0.25, 0.15], todayVector: [0.70, 0.28, 0.18] },
+      { sector: 'Financial', weight: 25, alpha: 1.8, sharpeRatio: 1.6, targetAlpha: 2.2, targetSharpe: 1.8, presentAlpha: 1.5, sentiment: 'Bullish', baselineVector: [0.65, 0.20, 0.18], todayVector: [0.60, 0.25, 0.20] },
+      { sector: 'Healthcare', weight: 20, alpha: 1.5, sharpeRatio: 1.4, targetAlpha: 1.8, targetSharpe: 1.6, presentAlpha: 1.2, sentiment: 'Hold', baselineVector: [0.55, 0.30, 0.15], todayVector: [0.56, 0.29, 0.16] },
+      { sector: 'Consumer', weight: 15, alpha: 1.2, sharpeRatio: 1.3, targetAlpha: 1.5, targetSharpe: 1.5, presentAlpha: 0.9, sentiment: 'Bearish', baselineVector: [0.40, 0.45, 0.20], todayVector: [0.38, 0.47, 0.22] },
+      { sector: 'Utilities', weight: 5, alpha: 0.5, sharpeRatio: 1.1, targetAlpha: 0.8, targetSharpe: 1.2, presentAlpha: 0.4, sentiment: 'Hold', baselineVector: [0.50, 0.35, 0.15], todayVector: [0.52, 0.33, 0.15] }
     ]
   });
-  const [pieTooltip, setPieTooltip] = useState(null); // { sector: string, percentage: number, x: number, y: number }
+  const [sentimentTooltip, setSentimentTooltip] = useState(null); // { sector: string, baselineVector: array, x: number, y: number }
   const [selectedAlphaDecayRow, setSelectedAlphaDecayRow] = useState(null); // sector name or null
   const [isThesisPanelExpanded, setIsThesisPanelExpanded] = useState(true); // Collapsible panel state
   const [isPortfolioPanelExpanded, setIsPortfolioPanelExpanded] = useState(true); // Portfolio panel collapse state
   const [showThinkingPopover, setShowThinkingPopover] = useState(null); // null or section name
   const [contextMenu, setContextMenu] = useState(null); // { section: string, x: number, y: number } or null
   const [copyNotification, setCopyNotification] = useState(null); // { x: number, y: number } or null
+  const [biasPopover, setBiasPopover] = useState(null); // { x: number, y: number } or null
+  const [biasInfoPopover, setBiasInfoPopover] = useState(null); // { metric: string, x: number, y: number, positionAbove: boolean } or null
+
+  // Bias Sentinel definitions
+  const biasDefinitions = {
+    turnoverRate: 'Annualised total trades ÷ portfolio value. High turnover often links to overtrading bias. (< 40% for long-term visible portfolios (house-benchmark))',
+    winHoldLossHold: 'Ratio of average hold period of winners to losers. A lower ratio → disposition effect. Ratio >1.2 (i.e., winners held 20% longer)',
+    addToLoser: '% of times PM increases size of a losing position without fresh thesis support. < 5% of total adds',
+    reentryAfterStop: 'Ratio of trades where PM re-enters position within e.g. 30 days of hitting stop. < 10%',
+    alertRate: 'Number of bias-alerts per 100 positions per month. < 1.0 alerts /100 positions',
+    overrideRate: '% of alerts overridden by PM (i.e., they continue). Pattern: very high override → PM ignoring tool; very low override → false-positives. 30–70% sweet-spot'
+  };
+
+  // Bias Sentinel mock metrics (could be computed from trade logs in real app)
+  const [biasMetrics, setBiasMetrics] = useState({
+    turnoverRatePct: 32, // Annualized trades as % of portfolio value
+    winHoldToLossHold: 1.05, // winners hold time / losers hold time
+    addToLoserPct: 4.1, // % adds that increased losing positions
+    reentryAfterStopPct: 8.5, // % re-entries within 30 days post stop-loss
+    biasAlertRatePer100: 0.7, // alerts per 100 positions / month
+    overrideRatePct: 46 // % of alerts overridden by PM
+  });
+
+  const biasStatus = {
+    turnoverRate: (v) => v < 40 ? 'ok' : v < 60 ? 'warn' : 'bad',
+    winHoldLossHold: (v) => v >= 1.2 ? 'ok' : v >= 1.0 ? 'warn' : 'bad',
+    addToLoser: (v) => v < 5 ? 'ok' : v < 10 ? 'warn' : 'bad',
+    reentryAfterStop: (v) => v < 10 ? 'ok' : v < 20 ? 'warn' : 'bad',
+    alertRate: (v) => v < 1.0 ? 'ok' : v < 2.0 ? 'warn' : 'bad',
+    overrideRate: (v) => (v >= 30 && v <= 70) ? 'ok' : (v >= 20 && v <= 80) ? 'warn' : 'bad'
+  };
   const [sectionThoughtLogs, setSectionThoughtLogs] = useState({
     briefing: [
       {
@@ -931,6 +963,21 @@ function Dashboard() {
     return colors[index % colors.length];
   };
 
+  const handleInfoIconClick = (e, metricKey) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 12;
+    let x = rect.left + rect.width / 2;
+    x = Math.max(margin, Math.min(vw - margin, x));
+    const spaceAbove = rect.top;
+    const spaceBelow = vh - rect.bottom;
+    const positionAbove = spaceAbove >= 180 || spaceAbove > spaceBelow;
+    const y = positionAbove ? rect.top : rect.bottom;
+    setBiasInfoPopover({ metric: metricKey, x, y, positionAbove });
+  };
+
   const calculateDuration = (inceptionDate) => {
     const now = new Date();
     const start = new Date(inceptionDate);
@@ -958,20 +1005,76 @@ function Dashboard() {
     return parts.join(', ');
   };
 
+  const computeCosineSimilarity = (a, b) => {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return 0;
+    let dot = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i = 0; i < a.length; i++) {
+      const ai = a[i] ?? 0;
+      const bi = b[i] ?? 0;
+      dot += ai * bi;
+      normA += ai * ai;
+      normB += bi * bi;
+    }
+    const denom = Math.sqrt(normA) * Math.sqrt(normB) || 1;
+    let cos = dot / denom;
+    if (Number.isNaN(cos)) cos = 0;
+    if (cos > 1) cos = 1;
+    if (cos < -1) cos = -1;
+    return cos;
+  };
+
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (pieTooltip && !e.target.closest('.thesis-pie-chart')) {
-        setPieTooltip(null);
+      const target = e.target;
+      const hasClosest = target && typeof target.closest === 'function';
+      const clickedTooltip = hasClosest && target.closest('.sentiment-tooltip');
+      const clickedCell = hasClosest && target.closest('.sentiment-cell');
+      if (sentimentTooltip && !clickedTooltip && !clickedCell) {
+        setSentimentTooltip(null);
       }
     };
 
-    if (pieTooltip) {
+    if (sentimentTooltip) {
       document.addEventListener('click', handleClickOutside);
       return () => {
         document.removeEventListener('click', handleClickOutside);
       };
     }
-  }, [pieTooltip]);
+  }, [sentimentTooltip]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      const target = e.target;
+      const hasClosest = target && typeof target.closest === 'function';
+      const clickedPopover = hasClosest && target.closest('.bias-popover');
+      const clickedBadge = hasClosest && target.closest('.tip-badge');
+      if (biasPopover && !clickedPopover && !clickedBadge) {
+        setBiasPopover(null);
+      }
+    };
+    if (biasPopover) {
+      document.addEventListener('click', onDocClick);
+      return () => document.removeEventListener('click', onDocClick);
+    }
+  }, [biasPopover]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      const target = e.target;
+      const hasClosest = target && typeof target.closest === 'function';
+      const clickedPopover = hasClosest && target.closest('.bias-info-popover');
+      const clickedInfoIcon = hasClosest && target.closest('.info-icon');
+      if (biasInfoPopover && !clickedPopover && !clickedInfoIcon) {
+        setBiasInfoPopover(null);
+      }
+    };
+    if (biasInfoPopover) {
+      document.addEventListener('click', onDocClick);
+      return () => document.removeEventListener('click', onDocClick);
+    }
+  }, [biasInfoPopover]);
 
   if (loading) return <div className="dashboard-loading">Loading portfolio data...</div>;
   if (error) return <div className="dashboard-error">Error: {error}</div>;
@@ -1379,6 +1482,7 @@ function Dashboard() {
                             <th>Sector Sharpe Ratio</th>
                             <th>Target Alpha</th>
                             <th>Target Sharpe Ratio</th>
+                            <th>Sentiment</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1408,96 +1512,82 @@ function Dashboard() {
                               <td>{item.sharpeRatio.toFixed(2)}</td>
                               <td className="target-value">{item.targetAlpha.toFixed(2)}%</td>
                               <td className="target-value">{item.targetSharpe.toFixed(2)}</td>
+                              <td 
+                                className="sentiment-cell"
+                                style={{
+                                  cursor: 'pointer',
+                                  color: item.sentiment === 'Bullish' ? '#4caf50' : item.sentiment === 'Bearish' ? '#f44336' : '#ff9800'
+                                }}
+                                onClick={(e) => {
+                                  const clickX = e.clientX;
+                                  const clickY = e.clientY;
+                                  const windowHeight = window.innerHeight;
+                                  const windowWidth = window.innerWidth;
+                                  const tooltipHeight = 120; // Approximate tooltip height
+                                  const tooltipWidth = 250; // Approximate tooltip width
+                                  const spaceAbove = clickY;
+                                  const spaceBelow = windowHeight - clickY;
+                                  
+                                  // Position above if more space above and enough space, otherwise below
+                                  const positionAbove = spaceAbove > spaceBelow && spaceAbove > tooltipHeight + 20;
+                                  
+                                  // Ensure tooltip doesn't go off-screen horizontally
+                                  let tooltipX = clickX;
+                                  const halfTooltipWidth = tooltipWidth / 2;
+                                  if (clickX - halfTooltipWidth < 10) {
+                                    tooltipX = halfTooltipWidth + 10;
+                                  } else if (clickX + halfTooltipWidth > windowWidth - 10) {
+                                    tooltipX = windowWidth - halfTooltipWidth - 10;
+                                  }
+                                  
+                                  setSentimentTooltip({
+                                    sector: item.sector,
+                                    baselineVector: item.baselineVector,
+                                    x: tooltipX,
+                                    y: e.clientY,
+                                    positionAbove: positionAbove
+                                  });
+                                }}
+                              >
+                                {item.sentiment}
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
-                    </div>
-                    <div className="thesis-pie-chart-wrapper">
-                      <h2 className="thesis-section-heading">Sector Allocation</h2>
-                      <div className="thesis-pie-chart" onClick={(e) => {
-                        if (e.target.tagName !== 'path' && e.target.tagName !== 'text') {
-                          setPieTooltip(null);
-                        }
-                      }}>
-                        <div className="pie-chart-container">
-                          <div className="pie-chart-visualization">
-                            <svg viewBox="0 0 200 200" className="pie-svg">
-                              {thesisData.sectors.reduce((acc, item, index) => {
-                                const total = thesisData.sectors.reduce((sum, s) => sum + s.weight, 0);
-                                const percentage = (item.weight / total) * 100;
-                                const startAngle = acc.currentAngle;
-                                const angle = (percentage / 100) * 360;
-                                const endAngle = startAngle + angle;
-                                
-                                const x1 = 100 + 95 * Math.cos((startAngle - 90) * Math.PI / 180);
-                                const y1 = 100 + 95 * Math.sin((startAngle - 90) * Math.PI / 180);
-                                const x2 = 100 + 95 * Math.cos((endAngle - 90) * Math.PI / 180);
-                                const y2 = 100 + 95 * Math.sin((endAngle - 90) * Math.PI / 180);
-                                const largeArc = angle > 180 ? 1 : 0;
-                                
-                                const midAngle = (startAngle + endAngle) / 2;
-                                const labelX = 100 + 75 * Math.cos((midAngle - 90) * Math.PI / 180);
-                                const labelY = 100 + 75 * Math.sin((midAngle - 90) * Math.PI / 180);
-                                
-                                const pathData = `M 100 100 L ${x1} ${y1} A 95 95 0 ${largeArc} 1 ${x2} ${y2} Z`;
-                                
-                                acc.segments.push(
-                                  <g 
-                                    key={item.sector} 
-                                    className="pie-segment-group"
-                                  >
-                                    <path
-                                      d={pathData}
-                                      fill={getSectorColor(index)}
-                                      stroke="#fff"
-                                      strokeWidth="3"
-                                      className="pie-segment-path"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setPieTooltip({
-                                          sector: item.sector,
-                                          percentage: item.weight,
-                                          x: e.clientX,
-                                          y: e.clientY
-                                        });
-                                      }}
-                                    />
-                                    <text
-                                      x={labelX}
-                                      y={labelY}
-                                      className="pie-label"
-                                      textAnchor="middle"
-                                      dominantBaseline="middle"
-                                    >
-                                      {item.sector}
-                                    </text>
-                                  </g>
-                                );
-                                
-                                acc.currentAngle = endAngle;
-                                return acc;
-                              }, { segments: [], currentAngle: 0 }).segments}
-                            </svg>
-                          </div>
-                        </div>
-                        {pieTooltip && (
+                      {sentimentTooltip && ReactDOM.createPortal(
+                        (
                           <div 
-                            className="pie-tooltip"
+                            className="sentiment-tooltip"
                             style={{
-                              left: `${pieTooltip.x}px`,
-                              top: `${pieTooltip.y}px`,
-                              transform: 'translate(-50%, -100%)'
+                              position: 'fixed',
+                              left: `${sentimentTooltip.x}px`,
+                              top: `${sentimentTooltip.y}px`,
+                              transform: sentimentTooltip.positionAbove 
+                                ? 'translate(-50%, calc(-100% - 10px))' 
+                                : 'translate(-50%, 10px)',
+                              zIndex: 10000
                             }}
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSentimentTooltip(null);
+                            }}
                           >
                             <div className="tooltip-content">
-                              <div className="tooltip-sector">{pieTooltip.sector}</div>
-                              <div className="tooltip-percentage">{pieTooltip.percentage}%</div>
+                              <div className="tooltip-sector">{sentimentTooltip.sector}</div>
+                              <div className="tooltip-baseline">
+                                <div className="baseline-label">Baseline (v₀):</div>
+                                <div className="baseline-vector">
+                                  <div className="baseline-item"><span className="baseline-key">Accuracy</span><span className="baseline-value">{(sentimentTooltip.baselineVector?.[0] ?? 0).toFixed(3)}</span></div>
+                                  <div className="baseline-item"><span className="baseline-key">Precision</span><span className="baseline-value">{(sentimentTooltip.baselineVector?.[1] ?? 0).toFixed(3)}</span></div>
+                                  <div className="baseline-item"><span className="baseline-key">Recall</span><span className="baseline-value">{(sentimentTooltip.baselineVector?.[2] ?? 0).toFixed(3)}</span></div>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        )}
-                      </div>
+                        ),
+                        document.body
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1672,12 +1762,275 @@ function Dashboard() {
                   )}
                 </div>
               </div>
+
+              <div className="sentiment-drift-section">
+                <h2 className="alpha-decay-heading">Sentiment Drift Since Inception</h2>
+                <div className="alpha-decay-container">
+                  <div className="alpha-decay-table-wrapper">
+                    <div className="alpha-decay-content">
+                      <table className="alpha-decay-table sentiment-drift-table">
+                        <thead>
+                          <tr>
+                            <th>Sector</th>
+                            <th>Inception v₀</th>
+                            <th>Today vₜ</th>
+                            <th>Cosine Similarity</th>
+                            <th>Drift</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {thesisData.sectors.map((item, index) => {
+                            const v0 = item.baselineVector || [0,0,0];
+                            const vt = item.todayVector || [0,0,0];
+                            const cos = computeCosineSimilarity(v0, vt);
+                            const drift = 1 - cos; // 0 = no drift, 1 = orthogonal
+                            const cosPct = (cos * 100).toFixed(1);
+                            const driftPct = (drift * 100).toFixed(1);
+                            return (
+                              <tr key={`drift-${item.sector}`}>
+                                <td className="sector-name-cell">
+                                  <div className="sector-indicator" style={{ backgroundColor: getSectorColor(index) }}></div>
+                                  {item.sector}
+                                </td>
+                                <td>
+                                  <div className="vector-mini">
+                                    <span className="mini-key">Acc</span><span className="mini-val">{(v0[0] ?? 0).toFixed(2)}</span>
+                                    <span className="mini-key">Prec</span><span className="mini-val">{(v0[1] ?? 0).toFixed(2)}</span>
+                                    <span className="mini-key">Rec</span><span className="mini-val">{(v0[2] ?? 0).toFixed(2)}</span>
+                                  </div>
+                                </td>
+                                <td>
+                                  <div className="vector-mini">
+                                    <span className="mini-key">Acc</span><span className="mini-val">{(vt[0] ?? 0).toFixed(2)}</span>
+                                    <span className="mini-key">Prec</span><span className="mini-val">{(vt[1] ?? 0).toFixed(2)}</span>
+                                    <span className="mini-key">Rec</span><span className="mini-val">{(vt[2] ?? 0).toFixed(2)}</span>
+                                  </div>
+                                </td>
+                                <td>
+                                  <div className={`cos-score ${cos >= 0.9 ? 'high' : cos >= 0.75 ? 'med' : 'low'}`}>{cosPct}%</div>
+                                </td>
+                                <td>
+                                  <div className="drift-bar">
+                                    <div className="drift-bar-fill" style={{ width: `${Math.min(100, Math.max(0, drift * 100))}%` }}></div>
+                                    <span className="drift-label">{driftPct}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             )}
 
             {agentActiveTab === 'dummy2' && (
-              <div className="agent-placeholder">
-                <p>Bias Sentinel</p>
+              <div className="bias-sentinel">
+                <div className="bias-header">
+                  <h2>Bias Sentinel</h2>
+                  <p className="bias-sub">Live monitors of behavioral patterns against best-practice guardrails</p>
+                </div>
+
+                <div className="bias-grid">
+                  <div className="bias-card">
+                    <div className="metric-title">
+                      Turnover Rate %
+                      <button
+                        type="button"
+                        className="info-icon"
+                        onClick={(e) => handleInfoIconClick(e, 'turnoverRate')}
+                        aria-label="Show definition"
+                      >
+                        i
+                      </button>
+                    </div>
+                    <div className="metric-row">
+                      <span className={`status-chip ${biasStatus.turnoverRate(biasMetrics.turnoverRatePct)}`}>{biasMetrics.turnoverRatePct}%</span>
+                      <span className="metric-guideline">Target: &lt; 40% (long-term portfolios)</span>
+                    </div>
+                    <div className="meter"><div className={`meter-fill ${biasStatus.turnoverRate(biasMetrics.turnoverRatePct)}`} style={{ width: `${Math.min(100, biasMetrics.turnoverRatePct)}%` }} /></div>
+                  </div>
+
+                  <div className="bias-card">
+                    <div className="metric-title">
+                      Winning Hold ÷ Losing Hold
+                      <button
+                        type="button"
+                        className="info-icon"
+                        onClick={(e) => handleInfoIconClick(e, 'winHoldLossHold')}
+                        aria-label="Show definition"
+                      >
+                        i
+                      </button>
+                    </div>
+                    <div className="metric-row">
+                      <span className={`status-chip ${biasStatus.winHoldLossHold(biasMetrics.winHoldToLossHold)}`}>{biasMetrics.winHoldToLossHold.toFixed(2)}x</span>
+                      <span className="metric-guideline">Target: &gt; 1.20x</span>
+                    </div>
+                    <div className="meter"><div className={`meter-fill ${biasStatus.winHoldLossHold(biasMetrics.winHoldToLossHold)}`} style={{ width: `${Math.min(100, (biasMetrics.winHoldToLossHold / 2.0) * 100)}%` }} /></div>
+                  </div>
+
+                  <div className="bias-card">
+                    <div className="metric-title">
+                      Add-to-Loser %
+                      <button
+                        type="button"
+                        className="info-icon"
+                        onClick={(e) => handleInfoIconClick(e, 'addToLoser')}
+                        aria-label="Show definition"
+                      >
+                        i
+                      </button>
+                    </div>
+                    <div className="metric-row">
+                      <span className={`status-chip ${biasStatus.addToLoser(biasMetrics.addToLoserPct)}`}>{biasMetrics.addToLoserPct.toFixed(1)}%</span>
+                      <span className="metric-guideline">Target: &lt; 5% of all adds</span>
+                    </div>
+                    <div className="meter"><div className={`meter-fill ${biasStatus.addToLoser(biasMetrics.addToLoserPct)}`} style={{ width: `${Math.min(100, biasMetrics.addToLoserPct)}%` }} /></div>
+                  </div>
+
+                  <div className="bias-card">
+                    <div className="metric-title">
+                      Re-entry AFTER Stop-Loss %
+                      <button
+                        type="button"
+                        className="info-icon"
+                        onClick={(e) => handleInfoIconClick(e, 'reentryAfterStop')}
+                        aria-label="Show definition"
+                      >
+                        i
+                      </button>
+                      <button
+                        type="button"
+                        className="tip-badge alert-badge"
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const vw = window.innerWidth;
+                          const vh = window.innerHeight;
+                          const margin = 12;
+                          let x = rect.left + rect.width / 2;
+                          x = Math.max(margin, Math.min(vw - margin, x));
+                          // Prefer above if there's space, else below
+                          const spaceAbove = rect.top;
+                          const spaceBelow = vh - rect.bottom;
+                          const positionAbove = spaceAbove >= 160 || spaceAbove > spaceBelow;
+                          const y = positionAbove ? rect.top : rect.bottom;
+                          setBiasPopover({ x, y, positionAbove });
+                        }}
+                        aria-label="Show re-entry insight"
+                      >
+                        1
+                      </button>
+                    </div>
+                    <div className="metric-row">
+                      <span className={`status-chip ${biasStatus.reentryAfterStop(biasMetrics.reentryAfterStopPct)}`}>{biasMetrics.reentryAfterStopPct.toFixed(1)}%</span>
+                      <span className="metric-guideline">Target: &lt; 10%</span>
+                    </div>
+                    <div className="meter"><div className={`meter-fill ${biasStatus.reentryAfterStop(biasMetrics.reentryAfterStopPct)}`} style={{ width: `${Math.min(100, biasMetrics.reentryAfterStopPct)}%` }} /></div>
+                  </div>
+
+                  <div className="bias-card">
+                    <div className="metric-title">
+                      Bias Alert Trigger Rate
+                      <button
+                        type="button"
+                        className="info-icon"
+                        onClick={(e) => handleInfoIconClick(e, 'alertRate')}
+                        aria-label="Show definition"
+                      >
+                        i
+                      </button>
+                    </div>
+                    <div className="metric-row">
+                      <span className={`status-chip ${biasStatus.alertRate(biasMetrics.biasAlertRatePer100)}`}>{biasMetrics.biasAlertRatePer100.toFixed(2)} /100 pos</span>
+                      <span className="metric-guideline">Target: &lt; 1.0 /100 pos /mo</span>
+                    </div>
+                    <div className="meter"><div className={`meter-fill ${biasStatus.alertRate(biasMetrics.biasAlertRatePer100)}`} style={{ width: `${Math.min(100, (biasMetrics.biasAlertRatePer100 / 2.0) * 100)}%` }} /></div>
+                  </div>
+
+                  <div className="bias-card">
+                    <div className="metric-title">
+                      PM Override Rate
+                      <button
+                        type="button"
+                        className="info-icon"
+                        onClick={(e) => handleInfoIconClick(e, 'overrideRate')}
+                        aria-label="Show definition"
+                      >
+                        i
+                      </button>
+                    </div>
+                    <div className="metric-row">
+                      <span className={`status-chip ${biasStatus.overrideRate(biasMetrics.overrideRatePct)}`}>{biasMetrics.overrideRatePct}%</span>
+                      <span className="metric-guideline">Sweet-spot: 30–70%</span>
+                    </div>
+                    <div className="range-meter">
+                      <div className="range-band bad" style={{ width: '15%' }} />
+                      <div className="range-band warn" style={{ width: '15%' }} />
+                      <div className="range-band ok" style={{ width: '40%' }} />
+                      <div className="range-band warn" style={{ width: '15%' }} />
+                      <div className="range-band bad" style={{ width: '15%' }} />
+                      <div className="needle" style={{ left: `${biasMetrics.overrideRatePct}%` }} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bias-footnote">Guidelines are indicative; investigate trend and context before action.</div>
+              {biasPopover && ReactDOM.createPortal(
+                (
+                  <div
+                    className="bias-popover"
+                    style={{
+                      position: 'fixed',
+                      left: `${biasPopover.x}px`,
+                      top: `${biasPopover.y}px`,
+                      transform: biasPopover.positionAbove 
+                        ? 'translate(-50%, calc(-100% - 12px))' 
+                        : 'translate(-50%, 12px)',
+                      zIndex: 10000
+                    }}
+                  >
+                    <div className="tooltip-content">
+                      <div className="tooltip-sector">Re-entry insight</div>
+                      <div className="tooltip-baseline">
+                        <div className="baseline-vector tooltip-message">
+                          You've re-entered AAPL within 12 days of a stop-loss exit – pattern resembles past revenge trades (−3.7 % avg).
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ),
+                document.body
+              )}
+              {biasInfoPopover && ReactDOM.createPortal(
+                (
+                  <div
+                    className="bias-info-popover"
+                    style={{
+                      position: 'fixed',
+                      left: `${biasInfoPopover.x}px`,
+                      top: `${biasInfoPopover.y}px`,
+                      transform: biasInfoPopover.positionAbove 
+                        ? 'translate(-50%, calc(-100% - 12px))' 
+                        : 'translate(-50%, 12px)',
+                      zIndex: 10000
+                    }}
+                  >
+                    <div className="tooltip-content">
+                      <div className="tooltip-sector">Definition</div>
+                      <div className="tooltip-baseline">
+                        <div className="baseline-vector tooltip-message">
+                          {biasDefinitions[biasInfoPopover.metric]}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ),
+                document.body
+              )}
               </div>
             )}
           </>

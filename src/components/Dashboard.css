@@ -2158,13 +2158,80 @@
 .tooltip-sector {
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   margin-bottom: 0.25rem;
 }
 
 .tooltip-percentage {
   color: var(--text-secondary);
   font-size: 0.9rem;
+}
+
+.sentiment-cell {
+  font-weight: 600;
+  transition: opacity 0.2s ease;
+}
+
+.sentiment-cell:hover {
+  opacity: 0.8;
+}
+
+.sentiment-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: auto;
+  max-width: 90vw;
+}
+
+.sentiment-tooltip .tooltip-content {
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  min-width: 200px;
+  font-size: 0.8rem;
+}
+
+.tooltip-baseline {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.baseline-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.baseline-vector {
+  font-family: 'Courier New', monospace;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  background: var(--primary-bg);
+  padding: 0.4rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.baseline-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.baseline-key {
+  font-family: var(--font-sans, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.baseline-value {
+  font-family: 'Courier New', monospace;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
 }
 
 /* Alpha Decay Section */
@@ -2184,6 +2251,67 @@
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 1rem;
+}
+
+/* Sentiment Drift */
+.sentiment-drift-section {
+  margin-top: 1.5rem;
+}
+
+.sentiment-drift-table .vector-mini {
+  display: inline-flex;
+  gap: 0.4rem;
+  background: var(--primary-bg);
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+}
+
+.sentiment-drift-table .mini-key {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.sentiment-drift-table .mini-val {
+  font-family: 'Courier New', monospace;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+}
+
+.cos-score {
+  display: inline-block;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.75rem;
+  background: var(--primary-bg);
+  color: var(--text-secondary);
+}
+
+.cos-score.high { color: #2e7d32; background: rgba(46, 125, 50, 0.08); }
+.cos-score.med { color: #f9a825; background: rgba(249, 168, 37, 0.1); }
+.cos-score.low { color: #c62828; background: rgba(198, 40, 40, 0.08); }
+
+.drift-bar {
+  position: relative;
+  width: 120px;
+  height: 8px;
+  background: var(--primary-bg);
+  border-radius: 999px;
+}
+
+.drift-bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: var(--accent-color);
+  border-radius: 999px;
+}
+
+.drift-label {
+  margin-left: 8px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
 }
 
 .alpha-decay-table-wrapper {
@@ -2311,6 +2439,268 @@
   }
 }
 
+/* Bias Sentinel */
+.bias-sentinel {
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: var(--shadow-md);
+  margin-top: 1.5rem;
+}
+
+.bias-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.bias-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--text-primary);
+}
+
+.bias-sub {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.bias-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.bias-card {
+  background: var(--primary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.metric-title {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+
+.metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.metric-guideline {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.status-chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 999px;
+}
+
+.status-chip.ok { background: rgba(76, 175, 80, 0.12); color: #2e7d32; }
+.status-chip.warn { background: rgba(249, 168, 37, 0.12); color: #b26a00; }
+.status-chip.bad { background: rgba(198, 40, 40, 0.12); color: #8e0000; }
+
+.meter {
+  position: relative;
+  height: 8px;
+  background: var(--secondary-bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.meter .meter-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+}
+
+.meter .meter-fill.ok { background: #2e7d32; }
+.meter .meter-fill.warn { background: #f9a825; }
+.meter .meter-fill.bad { background: #c62828; }
+
+.range-meter {
+  position: relative;
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.range-meter .range-band { height: 100%; }
+.range-meter .range-band.bad { background: rgba(198, 40, 40, 0.12); }
+.range-meter .range-band.warn { background: rgba(249, 168, 37, 0.12); }
+.range-meter .range-band.ok { background: rgba(46, 125, 50, 0.12); }
+
+.range-meter .needle {
+  position: absolute;
+  top: -4px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid var(--text-secondary);
+}
+
+.bias-footnote {
+  margin-top: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+/* Blinking tip badge */
+.tip-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--accent-color);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  animation: pulseBlink 1.4s infinite;
+}
+
+@keyframes pulseBlink {
+  0% { box-shadow: 0 0 0 0 rgba(0,0,0,0.15); opacity: 1; }
+  50% { box-shadow: 0 0 0 6px rgba(0,0,0,0); opacity: 0.8; }
+  100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); opacity: 1; }
+}
+
+.tip-badge.alert-badge {
+  background: #c62828; /* red highlight for attention */
+}
+
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-style: italic;
+  background: var(--border-color);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+}
+
+.info-icon:hover {
+  background: var(--accent-color);
+  color: #fff;
+  border-color: var(--accent-color);
+  transform: scale(1.1);
+}
+
+.bias-info-popover {
+  position: fixed;
+}
+
+.bias-info-popover .tooltip-content {
+  font-family: -apple-system, system-ui, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+  font-weight: 500;
+  max-width: 360px;
+  min-width: 240px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: block;
+}
+
+.bias-info-popover .tooltip-sector {
+  font-weight: 700;
+}
+
+.bias-info-popover .tooltip-message {
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.5;
+  color: #1a1a1a;
+  font-family: -apple-system, system-ui, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+  font-weight: 600;
+  max-width: 100%;
+  overflow: hidden;
+  display: block;
+}
+
+.bias-info-popover .baseline-vector {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  color: #1a1a1a !important;
+  font-weight: 600 !important;
+  font-family: -apple-system, system-ui, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif !important;
+}
+
+.bias-popover {
+  position: fixed;
+}
+
+.bias-popover .tooltip-content {
+  font-family: -apple-system, system-ui, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+  font-weight: 500;
+  max-width: 360px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.bias-popover .tooltip-sector {
+  font-weight: 700;
+}
+
+.bias-popover .tooltip-message {
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+  color: var(--text-primary);
+  font-family: -apple-system, system-ui, Segoe UI, Roboto, Inter, Helvetica, Arial, sans-serif;
+}
+
+@media (max-width: 1200px) {
+  .bias-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .bias-grid {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 768px) {
   .thesis-drift-section {
     padding: 0.75rem;
