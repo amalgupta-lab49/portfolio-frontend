@@ -92,67 +92,192 @@ function Dashboard() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [agentActiveTab, setAgentActiveTab] = useState('thesis');
-  const [showThinkingPopover, setShowThinkingPopover] = useState(false);
-  const [agentThoughtLog, setAgentThoughtLog] = useState([
-    {
-      id: 't1',
-      time: '09:40 AM',
-      title: 'Morning Briefing Generation',
-      kind: 'bullets',
-      prompt: `System: You are an AI portfolio manager.\nUser: Generate a concise morning briefing for the portfolio focusing on YTD performance vs benchmark and top 2 drivers. Include 1 actionable insight.\nContext: { ytdReturn: 12.3, benchmark: 10.0, drivers: ["AAPL", "MSFT"], risk: { techWeight: 37.2, threshold: 35 } }`,
-      bullets: [
-        'Portfolio is tracking 2.3% above benchmark YTD',
-        'Drivers: AAPL, MSFT momentum',
-        'Action: Trim Tech by 2-3% to reduce concentration (37.2% vs 35% target)'
-      ],
-      output: `Portfolio is tracking 2.3% above benchmark YTD. Primary drivers are AAPL and MSFT momentum. Insight: Consider trimming Technology exposure by 2-3% to reduce concentration risk as weight is 37.2% vs 35% target.`
-    },
-    {
-      id: 't2',
-      time: '09:45 AM',
-      title: 'Generate Rebalancing Snippet',
-      kind: 'code',
-      prompt: `Create a pseudo order plan to trim Tech by ~3% and reallocate to low beta holdings. Format as JSON.`,
-      code: {
-        language: 'json',
-        content: `{
-  "trim": [{"sector": "Technology", "percent": 3.0}],
-  "add": [
-    {"ticker": "XLU", "percent": 1.5},
-    {"ticker": "SHY", "percent": 1.5}
-  ]
-}`
+  const [thesisData, setThesisData] = useState({
+    inceptionDate: new Date('2023-01-15'), // Example inception date
+    sectors: [
+      { sector: 'Technology', weight: 35, alpha: 2.5, sharpeRatio: 1.8, targetAlpha: 3.0, targetSharpe: 2.0, presentAlpha: 2.1 },
+      { sector: 'Financial', weight: 25, alpha: 1.8, sharpeRatio: 1.6, targetAlpha: 2.2, targetSharpe: 1.8, presentAlpha: 1.5 },
+      { sector: 'Healthcare', weight: 20, alpha: 1.5, sharpeRatio: 1.4, targetAlpha: 1.8, targetSharpe: 1.6, presentAlpha: 1.2 },
+      { sector: 'Consumer', weight: 15, alpha: 1.2, sharpeRatio: 1.3, targetAlpha: 1.5, targetSharpe: 1.5, presentAlpha: 0.9 },
+      { sector: 'Utilities', weight: 5, alpha: 0.5, sharpeRatio: 1.1, targetAlpha: 0.8, targetSharpe: 1.2, presentAlpha: 0.4 }
+    ]
+  });
+  const [pieTooltip, setPieTooltip] = useState(null); // { sector: string, percentage: number, x: number, y: number }
+  const [selectedAlphaDecayRow, setSelectedAlphaDecayRow] = useState(null); // sector name or null
+  const [isThesisPanelExpanded, setIsThesisPanelExpanded] = useState(true); // Collapsible panel state
+  const [isPortfolioPanelExpanded, setIsPortfolioPanelExpanded] = useState(true); // Portfolio panel collapse state
+  const [showThinkingPopover, setShowThinkingPopover] = useState(null); // null or section name
+  const [contextMenu, setContextMenu] = useState(null); // { section: string, x: number, y: number } or null
+  const [copyNotification, setCopyNotification] = useState(null); // { x: number, y: number } or null
+  const [sectionThoughtLogs, setSectionThoughtLogs] = useState({
+    briefing: [
+      {
+        id: 'b1',
+        time: '09:40 AM',
+        title: 'Morning Briefing Generation',
+        kind: 'bullets',
+        prompt: `System: You are an AI portfolio manager.\nUser: Generate a concise morning briefing for the portfolio focusing on YTD performance vs benchmark and top 2 drivers. Include 1 actionable insight.\nContext: { ytdReturn: 12.3, benchmark: 10.0, drivers: ["AAPL", "MSFT"], risk: { techWeight: 37.2, threshold: 35 } }`,
+        bullets: [
+          'Portfolio is tracking 2.3% above benchmark YTD',
+          'Drivers: AAPL, MSFT momentum',
+          'Action: Trim Tech by 2-3% to reduce concentration (37.2% vs 35% target)'
+        ],
+        output: `Portfolio is tracking 2.3% above benchmark YTD. Primary drivers are AAPL and MSFT momentum. Insight: Consider trimming Technology exposure by 2-3% to reduce concentration risk as weight is 37.2% vs 35% target.`
+      }
+    ],
+    risk: [
+      {
+        id: 'r1',
+        time: '09:47 AM',
+        title: 'Volatility Alert Reasoning',
+        kind: 'text',
+        prompt: `Evaluate current portfolio volatility vs target and propose 1 mitigation using 30D realized volatility and beta`,
+        output: `Volatility (18.5%) exceeds target (15%). Suggest: increase allocation to lower beta names by 2-4% and introduce short-duration T-Bills to dampen variance.`
       },
-      output: 'Proposed trim/add plan in code block'
-    },
-    {
-      id: 't3',
-      time: '09:47 AM',
-      title: 'Volatility Alert Reasoning',
-      kind: 'text',
-      prompt: `Evaluate current portfolio volatility vs target and propose 1 mitigation using 30D realized volatility and beta`,
-      output: `Volatility (18.5%) exceeds target (15%). Suggest: increase allocation to lower beta names by 2-4% and introduce short-duration T-Bills to dampen variance.`
-    },
-    {
-      id: 't4',
-      time: '09:50 AM',
-      title: 'Risk Toolkit: Volatility Check',
-      kind: 'tool',
-      prompt: `Run risk toolkit check for realized volatility vs target`,
-      tool: {
-        name: 'risk.volatilityCheck',
-        inputs: { realizedVol: 18.5, targetVol: 15.0, beta: 1.2 },
-        result: 'Volatility exceeds target by 3.5 percentage points'
+      {
+        id: 'r2',
+        time: '09:50 AM',
+        title: 'Risk Toolkit: Volatility Check',
+        kind: 'tool',
+        prompt: `Run risk toolkit check for realized volatility vs target`,
+        tool: {
+          name: 'risk.volatilityCheck',
+          inputs: { realizedVol: 18.5, targetVol: 15.0, beta: 1.2 },
+          result: 'Volatility exceeds target by 3.5 percentage points'
+        },
+        output: 'Toolkit confirms breach; mitigation required'
+      }
+    ],
+    actions: [
+      {
+        id: 'a1',
+        time: '09:45 AM',
+        title: 'Rebalance Technology Exposure - Analysis',
+        kind: 'text',
+        prompt: `Analyze current technology sector exposure and determine rebalancing requirements. Consider target allocation thresholds.`,
+        output: 'Technology exposure at 37.2% exceeds target of 35%. Rebalancing recommendation: Reduce exposure by 2-3% and reallocate to lower beta sectors.'
       },
-      output: 'Toolkit confirms breach; mitigation required'
-    }
-  ]);
+      {
+        id: 'a2',
+        time: '09:46 AM',
+        title: 'Earnings Calendar Review - Schedule Action',
+        kind: 'tool',
+        prompt: `Generate earnings calendar review task for next week and schedule appropriate action items.`,
+        tool: {
+          name: 'calendar.scheduleReview',
+          inputs: { timeHorizon: 'next_week', focus: 'earnings_releases' },
+          result: 'Calendar review scheduled for tomorrow at 10:00 AM'
+        },
+        output: 'Earnings calendar review scheduled for next week. Key events identified: AAPL (Wed), MSFT (Thu).'
+      }
+    ],
+    performance: [
+      {
+        id: 'p1',
+        time: '09:42 AM',
+        title: 'YTD Return Calculation',
+        kind: 'tool',
+        prompt: `Calculate Year-to-Date return from portfolio start date to current date.`,
+        tool: {
+          name: 'portfolio.calculateYTD',
+          inputs: { startDate: '2024-01-01', endDate: '2024-12-20', benchmark: 'SP500' },
+          result: 'YTD Return: 12.3% (vs benchmark 10.0%)'
+        },
+        output: 'YTD Return calculated: +12.3%'
+      },
+      {
+        id: 'p2',
+        time: '09:43 AM',
+        title: 'Sharpe Ratio Analysis',
+        kind: 'tool',
+        prompt: `Calculate Sharpe ratio using risk-free rate and portfolio volatility.`,
+        tool: {
+          name: 'portfolio.calculateSharpe',
+          inputs: { riskFreeRate: 4.5, portfolioReturn: 12.3, volatility: 15.5 },
+          result: 'Sharpe Ratio: 1.8'
+        },
+        output: 'Sharpe Ratio calculated: 1.8 (excellent risk-adjusted return)'
+      },
+      {
+        id: 'p3',
+        time: '09:43 AM',
+        title: 'Portfolio Beta Calculation',
+        kind: 'tool',
+        prompt: `Calculate portfolio beta relative to market benchmark.`,
+        tool: {
+          name: 'portfolio.calculateBeta',
+          inputs: { benchmark: 'SP500', lookback: '252' },
+          result: 'Portfolio Beta: 1.2'
+        },
+        output: 'Portfolio Beta: 1.2 (20% more volatile than market)'
+      },
+      {
+        id: 'p4',
+        time: '09:44 AM',
+        title: 'Tracking Error Measurement',
+        kind: 'tool',
+        prompt: `Measure tracking error between portfolio returns and benchmark returns.`,
+        tool: {
+          name: 'portfolio.calculateTrackingError',
+          inputs: { benchmark: 'SP500', period: 'YTD' },
+          result: 'Tracking Error: 2.1%'
+        },
+        output: 'Tracking Error: 2.1% (low deviation from benchmark)'
+      }
+    ],
+    recent: [
+      {
+        id: 're1',
+        time: '09:45 AM',
+        title: 'Portfolio Analysis Complete',
+        kind: 'text',
+        prompt: `Complete initial portfolio analysis and log findings`,
+        output: 'Initial portfolio analysis completed. Identified 3 opportunities for optimization.'
+      },
+      {
+        id: 're2',
+        time: '09:47 AM',
+        title: 'Price Movement Alert - AAPL',
+        kind: 'tool',
+        prompt: `Monitor AAPL price movement and trigger alert if significant drop detected`,
+        tool: {
+          name: 'market.priceAlert',
+          inputs: { symbol: 'AAPL', threshold: -2.0, timeframe: '15min' },
+          result: 'AAPL dropped 2.3% in last 15 minutes'
+        },
+        output: 'AAPL dropped 2.3% in the last 15 minutes. Monitoring for potential rebalancing opportunity.'
+      },
+      {
+        id: 're3',
+        time: '09:50 AM',
+        title: 'Strategy Meeting Scheduling',
+        kind: 'tool',
+        prompt: `Schedule strategy review meeting based on market conditions and portfolio performance`,
+        tool: {
+          name: 'calendar.scheduleMeeting',
+          inputs: { type: 'strategy_review', urgency: 'high', preferredTime: 'morning' },
+          result: 'Meeting scheduled for tomorrow at 10:00 AM'
+        },
+        output: 'Strategy review meeting scheduled for tomorrow at 10:00 AM based on market conditions.'
+      },
+      {
+        id: 're4',
+        time: '09:52 AM',
+        title: 'Sector Exposure Warning',
+        kind: 'text',
+        prompt: `Analyze sector allocation and generate warning if any sector exceeds target allocation`,
+        output: 'Technology sector exposure exceeds target allocation by 5%. Preparing rebalancing recommendations.'
+      }
+    ]
+  });
 
   const [editingThoughtId, setEditingThoughtId] = useState(null);
   const [editPrompt, setEditPrompt] = useState('');
   const [editToolInputs, setEditToolInputs] = useState({});
+  const [thinkingEntry, setThinkingEntry] = useState(null); // { section: string, entryId: string }
+  const [thinkingText, setThinkingText] = useState(''); // Current text being displayed
 
-  const beginEdit = (entry) => {
+  const beginEdit = (entry, section) => {
     setEditingThoughtId(entry.id);
     setEditPrompt(entry.prompt || '');
     setEditToolInputs(entry.tool?.inputs ? { ...entry.tool.inputs } : {});
@@ -164,27 +289,381 @@ function Dashboard() {
     setEditToolInputs({});
   };
 
-  const saveEdit = (entry) => {
-    setAgentThoughtLog(prev => prev.map(e => {
-      if (e.id !== entry.id) return e;
-      if (e.kind === 'tool') {
-        return { ...e, prompt: editPrompt, tool: { ...e.tool, inputs: { ...editToolInputs } } };
-      }
-      return { ...e, prompt: editPrompt };
+  const saveEdit = (entry, section) => {
+    setSectionThoughtLogs(prev => ({
+      ...prev,
+      [section]: prev[section].map(e => {
+        if (e.id !== entry.id) return e;
+        if (e.kind === 'tool') {
+          return { ...e, prompt: editPrompt, tool: { ...e.tool, inputs: { ...editToolInputs } } };
+        }
+        return { ...e, prompt: editPrompt };
+      })
     }));
     setEditingThoughtId(null);
   };
 
-  const rerunThinking = (entry) => {
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setAgentThoughtLog(prev => prev.map(e => {
-      if (e.id !== entry.id) return e;
-      return {
-        ...e,
-        time: timestamp,
-        output: `[Re-run ${timestamp}] ` + (e.kind === 'tool' ? 'Toolkit executed with inputs ' + JSON.stringify(editingThoughtId === e.id ? editToolInputs : e.tool?.inputs || {}) : 'Updated analysis based on new prompt')
+  const getMockReasoningText = (entry) => {
+    if (entry.kind === 'tool') {
+      return [
+        "Analyzing tool requirements...",
+        "Preparing tool inputs...",
+        "Executing tool: " + (entry.tool?.name || 'unknown'),
+        "Processing results...",
+        "Validating output format...",
+        "Tool execution completed successfully."
+      ];
+    } else if (entry.kind === 'bullets') {
+      return [
+        "Processing portfolio data...",
+        "Identifying key performance indicators...",
+        "Analyzing benchmark comparison...",
+        "Extracting actionable insights...",
+        "Formatting key points...",
+        "Briefing generation complete."
+      ];
+    } else if (entry.kind === 'code') {
+      return [
+        "Parsing request parameters...",
+        "Generating code structure...",
+        "Applying business logic...",
+        "Formatting output...",
+        "Validating syntax...",
+        "Code generation complete."
+      ];
+    } else {
+      return [
+        "Processing input...",
+        "Analyzing context...",
+        "Applying portfolio management rules...",
+        "Evaluating market conditions...",
+        "Generating response...",
+        "Analysis complete."
+      ];
+    }
+  };
+
+  const rerunThinking = (entry, section) => {
+    // If currently editing this entry, save the prompt first
+    if (editingThoughtId === entry.id && editPrompt) {
+      const updatedEntry = {
+        ...entry,
+        prompt: editPrompt,
+        ...(entry.kind === 'tool' && editToolInputs ? { tool: { ...entry.tool, inputs: { ...editToolInputs } } } : {})
       };
-    }));
+      setSectionThoughtLogs(prev => ({
+        ...prev,
+        [section]: prev[section].map(e => e.id === entry.id ? updatedEntry : e)
+      }));
+      entry = updatedEntry;
+    }
+    
+    // Start thinking animation
+    setThinkingEntry({ section, entryId: entry.id });
+    setThinkingText('');
+    
+    const mockLines = getMockReasoningText(entry);
+    let lineIndex = 0;
+    let charIndex = 0;
+    
+    const animate = () => {
+      if (lineIndex >= mockLines.length) {
+        // Animation complete, update output
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setSectionThoughtLogs(prev => ({
+          ...prev,
+          [section]: prev[section].map(e => {
+            if (e.id !== entry.id) return e;
+            const finalInputs = (editingThoughtId === entry.id && e.kind === 'tool') ? editToolInputs : e.tool?.inputs || {};
+            return {
+              ...e,
+              time: timestamp,
+              output: `[Re-run ${timestamp}] ` + (e.kind === 'tool' ? 'Toolkit executed with inputs ' + JSON.stringify(finalInputs) : 'Updated analysis based on new prompt')
+            };
+          })
+        }));
+        setThinkingEntry(null);
+        setThinkingText('');
+        setEditingThoughtId(null); // Clear editing state after re-run
+        return;
+      }
+      
+      const currentLine = mockLines[lineIndex];
+      
+      if (charIndex < currentLine.length) {
+        setThinkingText(prev => prev + currentLine[charIndex]);
+        charIndex++;
+        setTimeout(animate, 30); // Typing speed
+      } else {
+        // Line complete, add newline and start next line after a pause
+        setThinkingText(prev => prev + '\n');
+        lineIndex++;
+        charIndex = 0;
+        setTimeout(animate, 300); // Pause between lines
+      }
+    };
+    
+    animate();
+  };
+
+  // Close context menu on outside click
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setContextMenu(null);
+    };
+    if (contextMenu) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [contextMenu]);
+
+  // Auto-hide copy notification after 1 second
+  useEffect(() => {
+    if (copyNotification) {
+      const timer = setTimeout(() => {
+        setCopyNotification(null);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [copyNotification]);
+
+  // Auto-scroll thinking animation as text appears
+  useEffect(() => {
+    if (thinkingText && thinkingEntry) {
+      const animationElement = document.querySelector(`.thinking-animation`);
+      if (animationElement) {
+        animationElement.scrollTop = animationElement.scrollHeight;
+      }
+    }
+  }, [thinkingText, thinkingEntry]);
+
+  const handleSectionContextMenu = (e, section) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      section,
+      x: e.clientX,
+      y: e.clientY
+    });
+  };
+
+  const handleShowReasoning = (section) => {
+    setShowThinkingPopover(section);
+    setContextMenu(null);
+  };
+
+  const renderThinkingPopover = (section, title) => {
+    if (showThinkingPopover !== section) return null;
+    const logs = sectionThoughtLogs[section] || [];
+    const hasToolInputs = logs.some(x => x.kind === 'tool' && x.tool?.inputs);
+
+    const showCopyNotification = (e) => {
+      setCopyNotification({
+        x: e.clientX,
+        y: e.clientY
+      });
+    };
+
+    const copyPrompts = (e) => {
+      if (!navigator?.clipboard) return;
+      const formatted = logs.map((x, index) => {
+        return `=== Entry ${index + 1}: ${x.title} ===\nTime: ${x.time}\n\nPROMPT:\n${x.prompt}`;
+      }).join('\n\n\n');
+      navigator.clipboard.writeText(formatted);
+      showCopyNotification(e);
+    };
+
+    const copyOutputs = (e) => {
+      if (!navigator?.clipboard) return;
+      const formatted = logs.map((x, index) => {
+        return `=== Entry ${index + 1}: ${x.title} ===\nTime: ${x.time}\n\nOUTPUT:\n${x.output}`;
+      }).join('\n\n\n');
+      navigator.clipboard.writeText(formatted);
+      showCopyNotification(e);
+    };
+
+    const copyAll = (e) => {
+      if (!navigator?.clipboard) return;
+      const formatted = logs.map((x, index) => {
+        let entry = `=== Entry ${index + 1}: ${x.title} ===\nTime: ${x.time}\n\nPROMPT:\n${x.prompt}`;
+        
+        if (x.kind === 'tool' && x.tool?.inputs) {
+          entry += `\n\nTOOL INPUTS:\n${JSON.stringify(x.tool.inputs, null, 2)}`;
+        }
+        
+        if (x.kind === 'bullets' && x.bullets) {
+          entry += `\n\nKEY POINTS:\n${x.bullets.map(b => `- ${b}`).join('\n')}`;
+        }
+        
+        if (x.kind === 'code' && x.code?.content) {
+          entry += `\n\nCODE (${x.code.language}):\n${x.code.content}`;
+        }
+        
+        entry += `\n\nOUTPUT:\n${x.output}`;
+        return entry;
+      }).join('\n\n\n');
+      navigator.clipboard.writeText(formatted);
+      showCopyNotification(e);
+    };
+
+    const copyToolInputs = (e) => {
+      if (!navigator?.clipboard) return;
+      const toolEntries = logs.filter(x => x.kind === 'tool' && x.tool?.inputs);
+      const formatted = toolEntries.map((x, index) => {
+        return `=== Entry ${index + 1}: ${x.title} ===\nTime: ${x.time}\nTool: ${x.tool.name}\n\nTOOL INPUTS:\n${JSON.stringify(x.tool.inputs, null, 2)}`;
+      }).join('\n\n\n');
+      navigator.clipboard.writeText(formatted);
+      showCopyNotification(e);
+    };
+
+    return (
+      <div className="thinking-popover-centered" onClick={(e) => e.stopPropagation()}>
+        <div className="thinking-popover-overlay" onClick={() => setShowThinkingPopover(null)}></div>
+        <div className="thinking-popover-content">
+        <div className="thinking-popover-header">
+          <span>{title} - Agent Thoughts</span>
+          <button className="popover-close" onClick={() => setShowThinkingPopover(null)}>✕</button>
+        </div>
+        <div className="thinking-actions">
+          <button 
+            className="analysis-action-button secondary"
+            onClick={copyPrompts}
+          >Copy Prompts</button>
+          <button 
+            className="analysis-action-button secondary"
+            onClick={copyOutputs}
+          >Copy Outputs</button>
+          {hasToolInputs && (
+            <button 
+              className="analysis-action-button secondary"
+              onClick={copyToolInputs}
+            >Copy Tool Inputs</button>
+          )}
+          <button 
+            className="analysis-action-button secondary"
+            onClick={copyAll}
+          >Copy All</button>
+        </div>
+        <div className="thinking-panel">
+          <div className="thinking-log">
+            {logs.map(entry => (
+              <div key={entry.id} className="thinking-item">
+                <div className="thinking-item-header">
+                  <div className="thinking-item-meta">
+                    <span className="thinking-time">{entry.time}</span>
+                    <span className="thinking-title">{entry.title}</span>
+                    <span className={`thinking-kind pill kind-${entry.kind}`}>{entry.kind}</span>
+                  </div>
+                  <div className="thinking-item-actions">
+                    {editingThoughtId === entry.id ? (
+                      <>
+                        <button className="tiny-button" onClick={() => saveEdit(entry, section)}>Save</button>
+                        <button className="tiny-button ghost" onClick={cancelEdit}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="tiny-button" onClick={() => beginEdit(entry, section)}>Edit</button>
+                        <button className="tiny-button" onClick={() => rerunThinking(entry, section)}>Re-run</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="thinking-blocks">
+                  <div className="thinking-block">
+                    <div className="thinking-block-label">Prompt</div>
+                    {editingThoughtId === entry.id ? (
+                      <textarea className="thinking-input" value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} />
+                    ) : (
+                      <pre className="thinking-code"><code>{entry.prompt}</code></pre>
+                    )}
+                  </div>
+
+                  {entry.kind === 'tool' && (
+                    <div className="thinking-block">
+                      <div className="thinking-block-label">Tool Inputs ({entry.tool?.name})</div>
+                      {editingThoughtId === entry.id ? (
+                        <div className="tool-inputs">
+                          {Object.keys(editToolInputs).map((key) => (
+                            <label key={key} className="tool-input-row">
+                              <span>{key}</span>
+                              <input
+                                className="tool-input"
+                                type="text"
+                                value={String(editToolInputs[key])}
+                                onChange={(e) => setEditToolInputs({ ...editToolInputs, [key]: e.target.value })}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <pre className="thinking-code"><code>{JSON.stringify(entry.tool?.inputs || {}, null, 2)}</code></pre>
+                      )}
+                    </div>
+                  )}
+
+                  {entry.kind === 'bullets' && (
+                    <div className="thinking-block">
+                      <div className="thinking-block-label">Key Points</div>
+                      <ul className="thinking-list">
+                        {(entry.bullets || []).map((b, idx) => (
+                          <li key={idx}>{b}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {entry.kind === 'code' && (
+                    <div className="thinking-block">
+                      <div className="thinking-block-label">Code ({entry.code?.language || 'text'})</div>
+                      <pre className="thinking-code"><code>{entry.code?.content || ''}</code></pre>
+                    </div>
+                  )}
+
+                  <div className="thinking-block">
+                    <div className="thinking-block-label">Output</div>
+                    {thinkingEntry && thinkingEntry.section === section && thinkingEntry.entryId === entry.id ? (
+                      <div className="thinking-animation">
+                        <pre className="thinking-code thinking-realtime">
+                          <code>{thinkingText}</code>
+                          <span className="thinking-cursor">▊</span>
+                        </pre>
+                      </div>
+                    ) : (
+                      <pre className="thinking-code"><code>{entry.output}</code></pre>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderContextMenu = () => {
+    if (!contextMenu) return null;
+    return (
+      <div 
+        className="context-menu"
+        style={{
+          position: 'fixed',
+          left: `${contextMenu.x}px`,
+          top: `${contextMenu.y}px`,
+          zIndex: 1001
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button 
+          className="context-menu-item"
+          onClick={() => handleShowReasoning(contextMenu.section)}
+        >
+          Show Reasoning
+        </button>
+      </div>
+    );
   };
 
   const [agentActions, setAgentActions] = useState([
@@ -438,6 +917,62 @@ function Dashboard() {
     }
   };
 
+  const getSectorColor = (index) => {
+    const colors = [
+      '#6c5ce7', // Purple
+      '#00b894', // Green
+      '#0984e3', // Blue
+      '#fdcb6e', // Yellow
+      '#e17055', // Orange
+      '#74b9ff', // Light Blue
+      '#a29bfe', // Light Purple
+      '#fd79a8'  // Pink
+    ];
+    return colors[index % colors.length];
+  };
+
+  const calculateDuration = (inceptionDate) => {
+    const now = new Date();
+    const start = new Date(inceptionDate);
+    
+    let years = now.getFullYear() - start.getFullYear();
+    let months = now.getMonth() - start.getMonth();
+    let days = now.getDate() - start.getDate();
+    
+    if (days < 0) {
+      months--;
+      const lastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+      days += lastMonth.getDate();
+    }
+    
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+    
+    const parts = [];
+    if (years > 0) parts.push(`${years} ${years === 1 ? 'year' : 'years'}`);
+    if (months > 0) parts.push(`${months} ${months === 1 ? 'month' : 'months'}`);
+    if (days > 0 || parts.length === 0) parts.push(`${days} ${days === 1 ? 'day' : 'days'}`);
+    
+    return parts.join(', ');
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (pieTooltip && !e.target.closest('.thesis-pie-chart')) {
+        setPieTooltip(null);
+      }
+    };
+
+    if (pieTooltip) {
+      document.addEventListener('click', handleClickOutside);
+      return () => {
+        document.removeEventListener('click', handleClickOutside);
+      };
+    }
+  }, [pieTooltip]);
+
   if (loading) return <div className="dashboard-loading">Loading portfolio data...</div>;
   if (error) return <div className="dashboard-error">Error: {error}</div>;
 
@@ -505,27 +1040,76 @@ function Dashboard() {
             </div>
           </div>
         </div>
-        <div className="portfolio-summary">
-          <div className="summary-item">
-            <span className="label">Total Value</span>
-            <span className="value">${selectedPortfolio.totalValue.toLocaleString()}</span>
+        {isAgentMode ? (
+          <div className={`collapsible-panel portfolio-panel ${!isPortfolioPanelExpanded ? 'collapsed' : ''}`}>
+            <div 
+              className="panel-header"
+              onClick={() => setIsPortfolioPanelExpanded(!isPortfolioPanelExpanded)}
+            >
+              <h2 className="panel-title">Portfolio Dashboard</h2>
+              <svg 
+                className={`panel-arrow ${isPortfolioPanelExpanded ? 'expanded' : ''}`}
+                width="16" 
+                height="16" 
+                viewBox="0 0 16 16" 
+                fill="none"
+              >
+                <path 
+                  d="M4 6L8 10L12 6" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <div className={`panel-content portfolio-panel-content ${isPortfolioPanelExpanded ? 'expanded' : ''}`}>
+              <div className="portfolio-summary">
+                <div className="summary-item">
+                  <span className="label">Total Value</span>
+                  <span className="value">${selectedPortfolio.totalValue.toLocaleString()}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="label">Daily Change</span>
+                  <span className={`value ${selectedPortfolio.dailyChange >= 0 ? 'positive' : 'negative'}`}>
+                    {selectedPortfolio.dailyChange >= 0 ? '+' : ''}${selectedPortfolio.dailyChange.toLocaleString()}
+                    ({selectedPortfolio.dailyChangePercent.toFixed(2)}%)
+                  </span>
+                </div>
+                <div className="summary-item">
+                  <span className="label">Portfolio Beta</span>
+                  <span className="value">{selectedPortfolio.riskMetrics.beta.toFixed(2)}</span>
+                </div>
+                <div className="summary-item">
+                  <span className="label">Sharpe Ratio</span>
+                  <span className="value">{selectedPortfolio.riskMetrics.sharpeRatio.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="summary-item">
-            <span className="label">Daily Change</span>
-            <span className={`value ${selectedPortfolio.dailyChange >= 0 ? 'positive' : 'negative'}`}>
-              {selectedPortfolio.dailyChange >= 0 ? '+' : ''}${selectedPortfolio.dailyChange.toLocaleString()}
-              ({selectedPortfolio.dailyChangePercent.toFixed(2)}%)
-            </span>
+        ) : (
+          <div className="portfolio-summary">
+            <div className="summary-item">
+              <span className="label">Total Value</span>
+              <span className="value">${selectedPortfolio.totalValue.toLocaleString()}</span>
+            </div>
+            <div className="summary-item">
+              <span className="label">Daily Change</span>
+              <span className={`value ${selectedPortfolio.dailyChange >= 0 ? 'positive' : 'negative'}`}>
+                {selectedPortfolio.dailyChange >= 0 ? '+' : ''}${selectedPortfolio.dailyChange.toLocaleString()}
+                ({selectedPortfolio.dailyChangePercent.toFixed(2)}%)
+              </span>
+            </div>
+            <div className="summary-item">
+              <span className="label">Portfolio Beta</span>
+              <span className="value">{selectedPortfolio.riskMetrics.beta.toFixed(2)}</span>
+            </div>
+            <div className="summary-item">
+              <span className="label">Sharpe Ratio</span>
+              <span className="value">{selectedPortfolio.riskMetrics.sharpeRatio.toFixed(2)}</span>
+            </div>
           </div>
-          <div className="summary-item">
-            <span className="label">Portfolio Beta</span>
-            <span className="value">{selectedPortfolio.riskMetrics.beta.toFixed(2)}</span>
-          </div>
-          <div className="summary-item">
-            <span className="label">Sharpe Ratio</span>
-            <span className="value">{selectedPortfolio.riskMetrics.sharpeRatio.toFixed(2)}</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {!isAgentMode && (
@@ -571,24 +1155,43 @@ function Dashboard() {
                 className={`tab-button ${agentActiveTab === 'thesis' ? 'active' : ''}`}
                 onClick={() => setAgentActiveTab('thesis')}
               >
-                Thesis Drift
+                Overview
               </button>
               <button 
                 className={`tab-button ${agentActiveTab === 'dummy1' ? 'active' : ''}`}
                 onClick={() => setAgentActiveTab('dummy1')}
               >
-                Dummy 1
+                Thesis Drift
               </button>
               <button 
                 className={`tab-button ${agentActiveTab === 'dummy2' ? 'active' : ''}`}
                 onClick={() => setAgentActiveTab('dummy2')}
               >
-                Dummy 2
+                Bias Sentinel
               </button>
             </div>
 
             {agentActiveTab === 'thesis' && (
               <div className="agent-tiled-view">
+                {renderContextMenu()}
+                {copyNotification && (
+                  <div 
+                    className="copy-notification"
+                    style={{
+                      position: 'fixed',
+                      left: `${copyNotification.x + 10}px`,
+                      top: `${copyNotification.y - 10}px`,
+                      zIndex: 10000
+                    }}
+                  >
+                    ✓ Copied to clipboard
+                  </div>
+                )}
+                {showThinkingPopover === 'briefing' && renderThinkingPopover('briefing', 'Morning Portfolio Briefing')}
+                {showThinkingPopover === 'risk' && renderThinkingPopover('risk', 'Risk Alerts')}
+                {showThinkingPopover === 'actions' && renderThinkingPopover('actions', 'Today\'s Actions')}
+                {showThinkingPopover === 'performance' && renderThinkingPopover('performance', 'Performance Metrics')}
+                {showThinkingPopover === 'recent' && renderThinkingPopover('recent', 'Recent Actions')}
                 <div className="agent-thinking-box">
                   <div className="thinking-header">
                     <h3>AI Portfolio Manager</h3>
@@ -597,149 +1200,20 @@ function Dashboard() {
                       <span>Active</span>
                     </div>
                   </div>
-                  <div className="thinking-controls">
-                    <button 
-                      className="thinking-icon-button"
-                      title="Show Thinking"
-                      aria-label="Show Thinking"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowThinkingPopover(!showThinkingPopover);
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" fill="currentColor"/>
-                      </svg>
-                    </button>
-                    {showThinkingPopover && (
-                      <div className="thinking-popover" onClick={(e) => e.stopPropagation()}>
-                        <div className="thinking-popover-header">
-                          <span>Agent Thoughts (Mocks)</span>
-                          <button className="popover-close" onClick={() => setShowThinkingPopover(false)}>✕</button>
-                        </div>
-                        <div className="thinking-actions">
-                          <button 
-                            className="analysis-action-button secondary"
-                            onClick={() => {
-                              if (navigator?.clipboard) {
-                                navigator.clipboard.writeText(agentThoughtLog.map(x => x.prompt).join('\n\n---\n\n'));
-                              }
-                            }}
-                          >Copy Prompts</button>
-                          <button 
-                            className="analysis-action-button secondary"
-                            onClick={() => {
-                              if (navigator?.clipboard) {
-                                navigator.clipboard.writeText(agentThoughtLog.map(x => x.output).join('\n\n---\n\n'));
-                              }
-                            }}
-                          >Copy Outputs</button>
-                          <button 
-                            className="analysis-action-button secondary"
-                            onClick={() => {
-                              if (navigator?.clipboard) {
-                                const both = agentThoughtLog.map(x => `Title: ${x.title}\nTime: ${x.time}\n\nPrompt:\n${x.prompt}\n\nOutput:\n${x.output}`).join('\n\n================\n\n');
-                                navigator.clipboard.writeText(both);
-                              }
-                            }}
-                          >Copy All</button>
-                        </div>
-                        <div className="thinking-panel">
-                          <div className="thinking-log">
-                            {agentThoughtLog.map(entry => (
-                              <div key={entry.id} className="thinking-item">
-                                <div className="thinking-item-header">
-                                  <div className="thinking-item-meta">
-                                    <span className="thinking-time">{entry.time}</span>
-                                    <span className="thinking-title">{entry.title}</span>
-                                    <span className={`thinking-kind pill kind-${entry.kind}`}>{entry.kind}</span>
-                                  </div>
-                                  <div className="thinking-item-actions">
-                                    {editingThoughtId === entry.id ? (
-                                      <>
-                                        <button className="tiny-button" onClick={() => saveEdit(entry)}>Save</button>
-                                        <button className="tiny-button ghost" onClick={cancelEdit}>Cancel</button>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <button className="tiny-button" onClick={() => beginEdit(entry)}>Edit</button>
-                                        <button className="tiny-button" onClick={() => rerunThinking(entry)}>Re-run</button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="thinking-blocks">
-                                  <div className="thinking-block">
-                                    <div className="thinking-block-label">Prompt</div>
-                                    {editingThoughtId === entry.id ? (
-                                      <textarea className="thinking-input" value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} />
-                                    ) : (
-                                      <pre className="thinking-code"><code>{entry.prompt}</code></pre>
-                                    )}
-                                  </div>
-
-                                  {entry.kind === 'tool' && (
-                                    <div className="thinking-block">
-                                      <div className="thinking-block-label">Tool Inputs ({entry.tool?.name})</div>
-                                      {editingThoughtId === entry.id ? (
-                                        <div className="tool-inputs">
-                                          {Object.keys(editToolInputs).map((key) => (
-                                            <label key={key} className="tool-input-row">
-                                              <span>{key}</span>
-                                              <input
-                                                className="tool-input"
-                                                type="text"
-                                                value={String(editToolInputs[key])}
-                                                onChange={(e) => setEditToolInputs({ ...editToolInputs, [key]: e.target.value })}
-                                              />
-                                            </label>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <pre className="thinking-code"><code>{JSON.stringify(entry.tool?.inputs || {}, null, 2)}</code></pre>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {entry.kind === 'bullets' && (
-                                    <div className="thinking-block">
-                                      <div className="thinking-block-label">Key Points</div>
-                                      <ul className="thinking-list">
-                                        {(entry.bullets || []).map((b, idx) => (
-                                          <li key={idx}>{b}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-
-                                  {entry.kind === 'code' && (
-                                    <div className="thinking-block">
-                                      <div className="thinking-block-label">Code ({entry.code?.language || 'text'})</div>
-                                      <pre className="thinking-code"><code>{entry.code?.content || ''}</code></pre>
-                                    </div>
-                                  )}
-
-                                  <div className="thinking-block">
-                                    <div className="thinking-block-label">Output</div>
-                                    <pre className="thinking-code"><code>{entry.output}</code></pre>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                   <div className="thinking-content">
                     <div className="agent-main-sections">
-                      <div className="thinking-message">
+                      <div 
+                        className="thinking-message section-context"
+                        onContextMenu={(e) => handleSectionContextMenu(e, 'briefing')}
+                      >
                         <h4>Morning Portfolio Briefing</h4>
                         <p>Portfolio is currently tracking 2.3% above benchmark YTD. Key positions AAPL and MSFT showing strong momentum.</p>
                       </div>
                       
-                      <div className="thinking-insights">
+                      <div 
+                        className="thinking-insights section-context"
+                        onContextMenu={(e) => handleSectionContextMenu(e, 'risk')}
+                      >
                         <h4>Risk Alerts</h4>
                         <table className="analysis-table">
                           <tbody>
@@ -773,7 +1247,10 @@ function Dashboard() {
                         </table>
                       </div>
 
-                      <div className="thinking-recommendations">
+                      <div 
+                        className="thinking-recommendations section-context"
+                        onContextMenu={(e) => handleSectionContextMenu(e, 'actions')}
+                      >
                         <h4>Today's Actions</h4>
                         <table className="analysis-table">
                           <tbody>
@@ -807,7 +1284,10 @@ function Dashboard() {
                         </table>
                       </div>
 
-                      <div className="thinking-performance">
+                      <div 
+                        className="thinking-performance section-context"
+                        onContextMenu={(e) => handleSectionContextMenu(e, 'performance')}
+                      >
                         <h4>Performance Metrics</h4>
                         <div className="metrics-grid">
                           <div className="metric-item">
@@ -830,7 +1310,10 @@ function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="agent-action-log">
+                    <div 
+                      className="agent-action-log section-context"
+                      onContextMenu={(e) => handleSectionContextMenu(e, 'recent')}
+                    >
                       <h4>
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -860,14 +1343,341 @@ function Dashboard() {
             )}
 
             {agentActiveTab === 'dummy1' && (
-              <div className="agent-placeholder">
-                <p>Dummy 1</p>
+              <div className="thesis-drift-section">
+                <div className={`collapsible-panel ${!isThesisPanelExpanded ? 'collapsed' : ''}`}>
+                  <div 
+                    className="panel-header"
+                    onClick={() => setIsThesisPanelExpanded(!isThesisPanelExpanded)}
+                  >
+                    <h2 className="panel-title">Thesis at Inception</h2>
+                    <svg 
+                      className={`panel-arrow ${isThesisPanelExpanded ? 'expanded' : ''}`}
+                      width="16" 
+                      height="16" 
+                      viewBox="0 0 16 16" 
+                      fill="none"
+                    >
+                      <path 
+                        d="M4 6L8 10L12 6" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                  <div className={`panel-content ${isThesisPanelExpanded ? 'expanded' : ''}`}>
+                    <div className="thesis-table-container">
+                    <div className="thesis-table-wrapper">
+                      <h2 className="thesis-section-heading">Thesis at Inception</h2>
+                      <table className="thesis-table">
+                        <thead>
+                          <tr>
+                            <th>Sector</th>
+                            <th>Allocation %</th>
+                            <th>Sector Alpha</th>
+                            <th>Sector Sharpe Ratio</th>
+                            <th>Target Alpha</th>
+                            <th>Target Sharpe Ratio</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {thesisData.sectors.map((item, index) => (
+                            <tr key={item.sector}>
+                              <td className="sector-name-cell">
+                                <div className="sector-indicator" style={{ backgroundColor: getSectorColor(index) }}></div>
+                                {item.sector}
+                              </td>
+                              <td>
+                                <div className="allocation-cell">
+                                  <div className="allocation-bar-container">
+                                    <div 
+                                      className="allocation-bar-fill"
+                                      style={{ 
+                                        width: `${item.weight}%`,
+                                        backgroundColor: getSectorColor(index)
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="allocation-percent">{item.weight}%</span>
+                                </div>
+                              </td>
+                              <td className={item.alpha >= item.targetAlpha ? 'positive' : 'negative'}>
+                                {item.alpha > 0 ? '+' : ''}{item.alpha.toFixed(2)}%
+                              </td>
+                              <td>{item.sharpeRatio.toFixed(2)}</td>
+                              <td className="target-value">{item.targetAlpha.toFixed(2)}%</td>
+                              <td className="target-value">{item.targetSharpe.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="thesis-pie-chart-wrapper">
+                      <h2 className="thesis-section-heading">Sector Allocation</h2>
+                      <div className="thesis-pie-chart" onClick={(e) => {
+                        if (e.target.tagName !== 'path' && e.target.tagName !== 'text') {
+                          setPieTooltip(null);
+                        }
+                      }}>
+                        <div className="pie-chart-container">
+                          <div className="pie-chart-visualization">
+                            <svg viewBox="0 0 200 200" className="pie-svg">
+                              {thesisData.sectors.reduce((acc, item, index) => {
+                                const total = thesisData.sectors.reduce((sum, s) => sum + s.weight, 0);
+                                const percentage = (item.weight / total) * 100;
+                                const startAngle = acc.currentAngle;
+                                const angle = (percentage / 100) * 360;
+                                const endAngle = startAngle + angle;
+                                
+                                const x1 = 100 + 95 * Math.cos((startAngle - 90) * Math.PI / 180);
+                                const y1 = 100 + 95 * Math.sin((startAngle - 90) * Math.PI / 180);
+                                const x2 = 100 + 95 * Math.cos((endAngle - 90) * Math.PI / 180);
+                                const y2 = 100 + 95 * Math.sin((endAngle - 90) * Math.PI / 180);
+                                const largeArc = angle > 180 ? 1 : 0;
+                                
+                                const midAngle = (startAngle + endAngle) / 2;
+                                const labelX = 100 + 75 * Math.cos((midAngle - 90) * Math.PI / 180);
+                                const labelY = 100 + 75 * Math.sin((midAngle - 90) * Math.PI / 180);
+                                
+                                const pathData = `M 100 100 L ${x1} ${y1} A 95 95 0 ${largeArc} 1 ${x2} ${y2} Z`;
+                                
+                                acc.segments.push(
+                                  <g 
+                                    key={item.sector} 
+                                    className="pie-segment-group"
+                                  >
+                                    <path
+                                      d={pathData}
+                                      fill={getSectorColor(index)}
+                                      stroke="#fff"
+                                      strokeWidth="3"
+                                      className="pie-segment-path"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPieTooltip({
+                                          sector: item.sector,
+                                          percentage: item.weight,
+                                          x: e.clientX,
+                                          y: e.clientY
+                                        });
+                                      }}
+                                    />
+                                    <text
+                                      x={labelX}
+                                      y={labelY}
+                                      className="pie-label"
+                                      textAnchor="middle"
+                                      dominantBaseline="middle"
+                                    >
+                                      {item.sector}
+                                    </text>
+                                  </g>
+                                );
+                                
+                                acc.currentAngle = endAngle;
+                                return acc;
+                              }, { segments: [], currentAngle: 0 }).segments}
+                            </svg>
+                          </div>
+                        </div>
+                        {pieTooltip && (
+                          <div 
+                            className="pie-tooltip"
+                            style={{
+                              left: `${pieTooltip.x}px`,
+                              top: `${pieTooltip.y}px`,
+                              transform: 'translate(-50%, -100%)'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="tooltip-content">
+                              <div className="tooltip-sector">{pieTooltip.sector}</div>
+                              <div className="tooltip-percentage">{pieTooltip.percentage}%</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
+              
+              <div className="alpha-decay-section">
+                <h2 className="alpha-decay-heading">Alpha Decay: Inception vs Present</h2>
+                <div className="alpha-decay-container">
+                  <div className="alpha-decay-table-wrapper">
+                    <div className="alpha-decay-content">
+                      <table className="alpha-decay-table">
+                        <thead>
+                          <tr>
+                            <th>Sector</th>
+                            <th>Alpha at Inception</th>
+                            <th>Present Alpha</th>
+                            <th>Decay</th>
+                            <th>Decay %</th>
+                            <th>Inception to Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {thesisData.sectors.map((item, index) => {
+                            const decay = item.presentAlpha - item.alpha;
+                            const decayPercent = ((decay / item.alpha) * 100).toFixed(1);
+                            return (
+                              <tr 
+                                key={item.sector}
+                                className={selectedAlphaDecayRow === item.sector ? 'selected-row' : ''}
+                                onClick={() => {
+                                  setSelectedAlphaDecayRow(selectedAlphaDecayRow === item.sector ? null : item.sector);
+                                }}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <td className="sector-name-cell">
+                                  <div className="sector-indicator" style={{ backgroundColor: getSectorColor(index) }}></div>
+                                  {item.sector}
+                                </td>
+                                <td className="alpha-value">{item.alpha > 0 ? '+' : ''}{item.alpha.toFixed(2)}%</td>
+                                <td className={item.presentAlpha >= item.alpha ? 'positive' : 'negative'}>
+                                  {item.presentAlpha > 0 ? '+' : ''}{item.presentAlpha.toFixed(2)}%
+                                </td>
+                                <td className={decay >= 0 ? 'positive' : 'negative'}>
+                                  {decay >= 0 ? '+' : ''}{decay.toFixed(2)}%
+                                </td>
+                                <td className={decay >= 0 ? 'positive' : 'negative'}>
+                                  {decay >= 0 ? '+' : ''}{decayPercent}%
+                                </td>
+                                <td className="duration-cell">
+                                  {calculateDuration(thesisData.inceptionDate)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  {selectedAlphaDecayRow && (
+                    <div className="alpha-decay-graph-wrapper">
+                      <div className="alpha-decay-graph">
+                        <div className="decay-graph-container">
+                          {(() => {
+                            const selectedSector = thesisData.sectors.find(s => s.sector === selectedAlphaDecayRow);
+                            if (!selectedSector) return null;
+                            
+                            const sectorIndex = thesisData.sectors.findIndex(s => s.sector === selectedAlphaDecayRow);
+                            const maxAlpha = 3.0;
+                            const inceptionAlpha = selectedSector.alpha;
+                            const presentAlpha = selectedSector.presentAlpha;
+                            
+                            // Create data points for the line (inception to present)
+                            const points = [
+                              { x: 40, y: 180 - (inceptionAlpha / maxAlpha) * 140 }, // Inception
+                              { x: 160, y: 180 - (presentAlpha / maxAlpha) * 140 }  // Present
+                            ];
+                            
+                            const pathData = `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+                            
+                            return (
+                              <svg viewBox="0 0 200 200" className="decay-graph-svg">
+                                {/* Y-axis */}
+                                <line x1="30" y1="20" x2="30" y2="180" stroke="#dfe6e9" strokeWidth="2" />
+                                {/* X-axis */}
+                                <line x1="30" y1="180" x2="180" y2="180" stroke="#dfe6e9" strokeWidth="2" />
+                                {/* Grid lines */}
+                                {[0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0].map((val, i) => {
+                                  const y = 180 - (val / 3.0) * 160;
+                                  return (
+                                    <g key={i}>
+                                      <line x1="30" y1={y} x2="180" y2={y} stroke="#f1f3f5" strokeWidth="1" strokeDasharray="2,2" />
+                                      <text x="25" y={y} textAnchor="end" dominantBaseline="middle" fontSize="10" fill="#636e72">
+                                        {val.toFixed(1)}
+                                      </text>
+                                    </g>
+                                  );
+                                })}
+                                {/* Line from inception to present */}
+                                <path
+                                  d={pathData}
+                                  stroke={getSectorColor(sectorIndex)}
+                                  strokeWidth="4"
+                                  fill="none"
+                                  strokeDasharray="5,5"
+                                />
+                                {/* Inception point */}
+                                <circle
+                                  cx={points[0].x}
+                                  cy={points[0].y}
+                                  r="5"
+                                  fill={getSectorColor(sectorIndex)}
+                                />
+                                {/* Present point */}
+                                <circle
+                                  cx={points[1].x}
+                                  cy={points[1].y}
+                                  r="5"
+                                  fill={getSectorColor(sectorIndex)}
+                                  opacity="0.7"
+                                />
+                                {/* Labels */}
+                                <text
+                                  x={points[0].x}
+                                  y={points[0].y - 12}
+                                  textAnchor="middle"
+                                  dominantBaseline="bottom"
+                                  fontSize="9"
+                                  fill={getSectorColor(sectorIndex)}
+                                  fontWeight="600"
+                                >
+                                  Inception: {inceptionAlpha.toFixed(2)}%
+                                </text>
+                                <text
+                                  x={points[1].x}
+                                  y={points[1].y - 12}
+                                  textAnchor="middle"
+                                  dominantBaseline="bottom"
+                                  fontSize="9"
+                                  fill={getSectorColor(sectorIndex)}
+                                  fontWeight="600"
+                                  opacity="0.7"
+                                >
+                                  Present: {presentAlpha.toFixed(2)}%
+                                </text>
+                                {/* X-axis labels */}
+                                <text
+                                  x={points[0].x}
+                                  y="195"
+                                  textAnchor="middle"
+                                  dominantBaseline="top"
+                                  fontSize="9"
+                                  fill="#636e72"
+                                >
+                                  Inception
+                                </text>
+                                <text
+                                  x={points[1].x}
+                                  y="195"
+                                  textAnchor="middle"
+                                  dominantBaseline="top"
+                                  fontSize="9"
+                                  fill="#636e72"
+                                >
+                                  Present
+                                </text>
+                              </svg>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
             )}
 
             {agentActiveTab === 'dummy2' && (
               <div className="agent-placeholder">
-                <p>Dummy 2</p>
+                <p>Bias Sentinel</p>
               </div>
             )}
           </>
