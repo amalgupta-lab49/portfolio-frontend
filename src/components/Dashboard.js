@@ -96,14 +96,90 @@ function Dashboard() {
   const [thesisData, setThesisData] = useState({
     inceptionDate: new Date('2023-01-15'), // Example inception date
     sectors: [
-      { sector: 'Technology', weight: 35, alpha: 2.5, sharpeRatio: 1.8, targetAlpha: 3.0, targetSharpe: 2.0, presentAlpha: 2.1, sentiment: 'Bullish', baselineVector: [0.75, 0.25, 0.15], todayVector: [0.70, 0.28, 0.18] },
-      { sector: 'Financial', weight: 25, alpha: 1.8, sharpeRatio: 1.6, targetAlpha: 2.2, targetSharpe: 1.8, presentAlpha: 1.5, sentiment: 'Bullish', baselineVector: [0.65, 0.20, 0.18], todayVector: [0.60, 0.25, 0.20] },
-      { sector: 'Healthcare', weight: 20, alpha: 1.5, sharpeRatio: 1.4, targetAlpha: 1.8, targetSharpe: 1.6, presentAlpha: 1.2, sentiment: 'Hold', baselineVector: [0.55, 0.30, 0.15], todayVector: [0.56, 0.29, 0.16] },
-      { sector: 'Consumer', weight: 15, alpha: 1.2, sharpeRatio: 1.3, targetAlpha: 1.5, targetSharpe: 1.5, presentAlpha: 0.9, sentiment: 'Bearish', baselineVector: [0.40, 0.45, 0.20], todayVector: [0.38, 0.47, 0.22] },
-      { sector: 'Utilities', weight: 5, alpha: 0.5, sharpeRatio: 1.1, targetAlpha: 0.8, targetSharpe: 1.2, presentAlpha: 0.4, sentiment: 'Hold', baselineVector: [0.50, 0.35, 0.15], todayVector: [0.52, 0.33, 0.15] }
+      { 
+        sector: 'Technology', 
+        weight: 35, 
+        alpha: 2.5, 
+        sharpeRatio: 1.8, 
+        targetAlpha: 3.0, 
+        targetSharpe: 2.0, 
+        presentAlpha: 2.1, 
+        sentiment: 'Bullish', 
+        baselineVector: [0.75, 0.25, 0.15], 
+        todayVector: [0.70, 0.28, 0.18],
+        internalSentimentBaseline: [0.78, 0.22, 0.12],
+        internalSentimentToday: [0.72, 0.26, 0.16],
+        externalSentimentBaseline: [0.72, 0.28, 0.18],
+        externalSentimentToday: [0.68, 0.30, 0.20]
+      },
+      { 
+        sector: 'Financial', 
+        weight: 25, 
+        alpha: 1.8, 
+        sharpeRatio: 1.6, 
+        targetAlpha: 2.2, 
+        targetSharpe: 1.8, 
+        presentAlpha: 1.5, 
+        sentiment: 'Bullish', 
+        baselineVector: [0.65, 0.20, 0.18], 
+        todayVector: [0.60, 0.25, 0.20],
+        internalSentimentBaseline: [0.68, 0.18, 0.16],
+        internalSentimentToday: [0.62, 0.23, 0.19],
+        externalSentimentBaseline: [0.62, 0.22, 0.20],
+        externalSentimentToday: [0.58, 0.27, 0.21]
+      },
+      { 
+        sector: 'Healthcare', 
+        weight: 20, 
+        alpha: 1.5, 
+        sharpeRatio: 1.4, 
+        targetAlpha: 1.8, 
+        targetSharpe: 1.6, 
+        presentAlpha: 1.2, 
+        sentiment: 'Hold', 
+        baselineVector: [0.55, 0.30, 0.15], 
+        todayVector: [0.56, 0.29, 0.16],
+        internalSentimentBaseline: [0.58, 0.28, 0.14],
+        internalSentimentToday: [0.59, 0.27, 0.15],
+        externalSentimentBaseline: [0.52, 0.32, 0.16],
+        externalSentimentToday: [0.53, 0.31, 0.17]
+      },
+      { 
+        sector: 'Consumer', 
+        weight: 15, 
+        alpha: 1.2, 
+        sharpeRatio: 1.3, 
+        targetAlpha: 1.5, 
+        targetSharpe: 1.5, 
+        presentAlpha: 0.9, 
+        sentiment: 'Bearish', 
+        baselineVector: [0.40, 0.45, 0.20], 
+        todayVector: [0.38, 0.47, 0.22],
+        internalSentimentBaseline: [0.42, 0.43, 0.19],
+        internalSentimentToday: [0.40, 0.45, 0.21],
+        externalSentimentBaseline: [0.38, 0.47, 0.21],
+        externalSentimentToday: [0.36, 0.49, 0.23]
+      },
+      { 
+        sector: 'Utilities', 
+        weight: 5, 
+        alpha: 0.5, 
+        sharpeRatio: 1.1, 
+        targetAlpha: 0.8, 
+        targetSharpe: 1.2, 
+        presentAlpha: 0.4, 
+        sentiment: 'Hold', 
+        baselineVector: [0.50, 0.35, 0.15], 
+        todayVector: [0.52, 0.33, 0.15],
+        internalSentimentBaseline: [0.52, 0.33, 0.14],
+        internalSentimentToday: [0.54, 0.31, 0.14],
+        externalSentimentBaseline: [0.48, 0.37, 0.16],
+        externalSentimentToday: [0.50, 0.35, 0.16]
+      }
     ]
   });
   const [sentimentTooltip, setSentimentTooltip] = useState(null); // { sector: string, baselineVector: array, x: number, y: number }
+  const [sentimentDriftTooltip, setSentimentDriftTooltip] = useState(null); // { sector: string, type: 'internal' | 'external', baselineVector: array, todayVector: array, x: number, y: number, positionAbove: boolean }
   const [selectedAlphaDecayRow, setSelectedAlphaDecayRow] = useState(null); // sector name or null
   const [isThesisPanelExpanded, setIsThesisPanelExpanded] = useState(true); // Collapsible panel state
   const [isPortfolioPanelExpanded, setIsPortfolioPanelExpanded] = useState(true); // Portfolio panel collapse state
@@ -116,6 +192,9 @@ function Dashboard() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatExpanded, setIsChatExpanded] = useState(false);
+  const [showHoldingsPopup, setShowHoldingsPopup] = useState(false);
+  const [expandedHoldingId, setExpandedHoldingId] = useState(null);
+  const [redFlagTooltip, setRedFlagTooltip] = useState(null); // { holdingId: number, flagIndex: number, x: number, y: number }
 
   // Bias Sentinel definitions
   const biasDefinitions = {
@@ -167,8 +246,8 @@ function Dashboard() {
         time: '09:47 AM',
         title: 'Volatility Alert Reasoning',
         kind: 'text',
-        prompt: `Evaluate current portfolio volatility vs target and propose 1 mitigation using 30D realized volatility and beta`,
-        output: `Volatility (18.5%) exceeds target (15%). Suggest: increase allocation to lower beta names by 2-4% and introduce short-duration T-Bills to dampen variance.`
+        prompt: `Calculate Volatility and Exposure Risk per sector/Fund/Or Overall, and for any risks get Top-10-holdings with flags as a response. Evaluate current portfolio volatility vs target and propose 1 mitigation using 30D realized volatility and beta`,
+        output: `Volatility and Exposure Risk Analysis: Overall portfolio volatility (18.5%) exceeds target (15%). Technology sector shows highest exposure risk at 37.2% (threshold: 35%). Top-10 holdings with flags: GOOGL (P/E ratio 35% above sector median), META (SEC investigation pending, EBITDA margin declined 15% YoY), TSLA (Short interest increased 40% in past month, Free cash flow negative for 2 consecutive quarters, Management guidance lowered for Q4), AMD (EBITDA margin declined 12% YoY). Mitigation: increase allocation to lower beta names by 2-4% and introduce short-duration T-Bills to dampen variance.`
       },
       {
         id: 'r2',
@@ -261,9 +340,9 @@ function Dashboard() {
         output: 'Tracking Error: 2.1% (low deviation from benchmark)'
       }
     ],
-    recent: [
+    aiActions: [
       {
-        id: 're1',
+        id: 'ai1',
         time: '09:45 AM',
         title: 'Portfolio Analysis Complete',
         kind: 'text',
@@ -271,7 +350,7 @@ function Dashboard() {
         output: 'Initial portfolio analysis completed. Identified 3 opportunities for optimization.'
       },
       {
-        id: 're2',
+        id: 'ai2',
         time: '09:47 AM',
         title: 'Price Movement Alert - AAPL',
         kind: 'tool',
@@ -284,7 +363,7 @@ function Dashboard() {
         output: 'AAPL dropped 2.3% in the last 15 minutes. Monitoring for potential rebalancing opportunity.'
       },
       {
-        id: 're3',
+        id: 'ai3',
         time: '09:50 AM',
         title: 'Strategy Meeting Scheduling',
         kind: 'tool',
@@ -297,12 +376,51 @@ function Dashboard() {
         output: 'Strategy review meeting scheduled for tomorrow at 10:00 AM based on market conditions.'
       },
       {
-        id: 're4',
+        id: 'ai4',
         time: '09:52 AM',
         title: 'Sector Exposure Warning',
         kind: 'text',
         prompt: `Analyze sector allocation and generate warning if any sector exceeds target allocation`,
         output: 'Technology sector exposure exceeds target allocation by 5%. Preparing rebalancing recommendations.'
+      },
+      {
+        id: 'ai5',
+        time: '10:10 AM',
+        title: 'Risk Metrics Recalculation',
+        kind: 'tool',
+        prompt: `Recalculate portfolio risk metrics after user actions`,
+        tool: {
+          name: 'portfolio.recalculateRisk',
+          inputs: { includeRecentTrades: true, includeAllocationChanges: true },
+          result: 'Risk metrics updated: Beta 1.22, Volatility 18.7%, Sharpe 1.75'
+        },
+        output: 'Portfolio risk metrics recalculated based on recent trades and allocation changes. Beta increased slightly to 1.22.'
+      }
+    ],
+    userActions: [
+      {
+        id: 'u1',
+        time: '09:48 AM',
+        title: 'Manual Trade Execution - MSFT',
+        kind: 'text',
+        prompt: `User executed manual buy order for MSFT. Record trade details and rationale.`,
+        output: 'Manual trade executed: 100 shares of MSFT at $380.50. User rationale: Strong earnings guidance indicates upward momentum.'
+      },
+      {
+        id: 'u2',
+        time: '09:55 AM',
+        title: 'Portfolio Target Adjustment',
+        kind: 'text',
+        prompt: `User updated Technology sector allocation target. Record change and reason.`,
+        output: 'Portfolio target updated: Technology sector allocation target adjusted from 35% to 40%. User reason: Reflect positive market outlook for tech sector.'
+      },
+      {
+        id: 'u3',
+        time: '10:05 AM',
+        title: 'Stop-Loss Modification - AAPL',
+        kind: 'text',
+        prompt: `User modified stop-loss for AAPL position. Record change details.`,
+        output: 'Stop-loss modified: AAPL stop-loss updated from $165 to $170 per share. User rationale: Recent support level suggests upward price movement.'
       }
     ],
     thesisAtInception: [
@@ -380,27 +498,29 @@ function Dashboard() {
       {
         id: 'sd1',
         time: '10:25 AM',
-        title: 'Sentiment Drift Analysis',
+        title: 'Sentiment Drift Analysis - Internal vs External',
         kind: 'text',
-        prompt: `Analyze sentiment drift by comparing inception sentiment vectors (v₀) with today's sentiment vectors (vₜ) using cosine similarity. Identify sectors with significant sentiment changes.`,
-        output: 'Sentiment drift analysis reveals Technology sector maintains high similarity (0.97), while Consumer sector shows moderate drift (0.92). Cosine similarity metrics indicate overall sentiment stability.'
+        prompt: `Calculate variance between internal and external sentiment drift. Analyze sentiment drift by comparing inception sentiment vectors (v₀) with today's sentiment vectors (vₜ) using cosine similarity for both internal (portfolio manager's view) and external (market consensus) sentiment. Calculate variance as the absolute difference between internal and external drift. Identify sectors with significant variance between internal and external sentiment changes.`,
+        output: 'Sentiment drift analysis comparing internal vs external sentiment: Technology sector shows internal drift of 7.2% vs external drift of 5.8% (variance: 1.4% - Aligned). Financial sector shows internal drift of 8.1% vs external drift of 6.5% (variance: 1.6% - Aligned). Healthcare sector shows internal drift of 1.7% vs external drift of 1.9% (variance: 0.2% - Aligned). Consumer sector shows internal drift of 4.8% vs external drift of 5.2% (variance: 0.4% - Aligned). Utilities sector shows internal drift of 3.8% vs external drift of 4.1% (variance: 0.3% - Aligned). Overall, internal and external sentiment drifts are well-aligned across all sectors, indicating portfolio manager\'s view aligns with market consensus.'
       },
       {
         id: 'sd2',
         time: '10:26 AM',
-        title: 'Cosine Similarity Calculation',
+        title: 'Variance Calculation - Internal vs External Sentiment',
         kind: 'tool',
-        prompt: `Calculate cosine similarity between inception and present sentiment vectors for each sector`,
+        prompt: `Calculate cosine similarity for both internal and external sentiment vectors, then compute variance (absolute difference) between internal and external drift for each sector`,
         tool: {
-          name: 'math.cosineSimilarity',
+          name: 'sentiment.calculateVariance',
           inputs: { 
-            v0: [0.75, 0.25, 0.15], 
-            vt: [0.70, 0.28, 0.18],
+            internalBaseline: [0.78, 0.22, 0.12], 
+            internalToday: [0.72, 0.26, 0.16],
+            externalBaseline: [0.72, 0.28, 0.18],
+            externalToday: [0.68, 0.30, 0.20],
             sector: 'Technology'
           },
-          result: 'Cosine similarity: 0.97 (97% similarity)'
+          result: 'Internal drift: 7.2%, External drift: 5.8%, Variance: 1.4%'
         },
-        output: 'Technology sector sentiment maintains 97% similarity between inception and present, indicating minimal drift.'
+        output: 'Technology sector: Internal sentiment drift (7.2%) vs External sentiment drift (5.8%) = Variance of 1.4% (Aligned). Low variance indicates portfolio manager\'s internal view closely matches external market sentiment.'
       },
       {
         id: 'sd3',
@@ -581,6 +701,68 @@ function Dashboard() {
           'Pattern analysis: Consistent override rate suggests stable decision-making'
         ],
         output: 'Current override rate of 46% indicates healthy balance between tool recommendations and PM judgment.'
+      }
+    ],
+    holdings: [
+      {
+        id: 'h1',
+        time: '10:30 AM',
+        title: 'Technology Sector Holdings Analysis',
+        kind: 'text',
+        prompt: `Analyze Technology sector holdings, identify top 10 positions, and flag any red flags or risk indicators for each holding.`,
+        output: 'Technology sector holdings analyzed. Top 10 positions identified with total values. Red flags detected for GOOGL (P/E ratio 35% above sector median), META (SEC investigation pending, EBITDA margin declined 15% YoY), TSLA (Short interest increased 40% in past month, Free cash flow negative for 2 consecutive quarters, Management guidance lowered for Q4), and AMD (EBITDA margin declined 12% YoY).'
+      },
+      {
+        id: 'h2',
+        time: '10:31 AM',
+        title: 'Red Flag Detection - Valuation Check',
+        kind: 'tool',
+        prompt: `Check for overvaluation flags in Technology sector holdings`,
+        tool: {
+          name: 'risk.checkValuation',
+          inputs: { sector: 'Technology', threshold: 'P/E > sector_median + 30%' },
+          result: 'Valuation concern detected: GOOGL (P/E ratio 35% above sector median)'
+        },
+        output: 'Valuation check completed. P/E ratio concern raised for GOOGL, which is trading 35% above sector median.'
+      },
+      {
+        id: 'h3',
+        time: '10:32 AM',
+        title: 'Regulatory Flag Check',
+        kind: 'tool',
+        prompt: `Check for regulatory flags including SEC investigations and compliance warnings`,
+        tool: {
+          name: 'risk.checkRegulatory',
+          inputs: { sector: 'Technology', checkTypes: ['sec_investigations', 'compliance_warnings'] },
+          result: 'Regulatory flags detected: META (SEC investigation pending)'
+        },
+        output: 'Regulatory check completed. SEC investigation pending flag raised for META.'
+      },
+      {
+        id: 'h4',
+        time: '10:33 AM',
+        title: 'Financial Metrics Check - EBITDA Margins & Cash Flow',
+        kind: 'tool',
+        prompt: `Check EBITDA margins and free cash flow trends for Technology holdings`,
+        tool: {
+          name: 'risk.checkFinancialMetrics',
+          inputs: { sector: 'Technology', metrics: ['ebitda_margin_yoy', 'free_cash_flow'] },
+          result: 'Financial concerns detected: META (EBITDA margin declined 15% YoY), TSLA (Free cash flow negative for 2 consecutive quarters), AMD (EBITDA margin declined 12% YoY)'
+        },
+        output: 'Financial metrics analysis completed. EBITDA margin declines detected for META (15% YoY) and AMD (12% YoY). Free cash flow concern raised for TSLA (negative for 2 consecutive quarters).'
+      },
+      {
+        id: 'h5',
+        time: '10:34 AM',
+        title: 'Market Sentiment & Guidance Check',
+        kind: 'tool',
+        prompt: `Check short interest trends and management guidance changes`,
+        tool: {
+          name: 'risk.checkMarketSentiment',
+          inputs: { sector: 'Technology', metrics: ['short_interest', 'guidance_changes'] },
+          result: 'Market sentiment concerns detected: TSLA (Short interest increased 40% in past month, Management guidance lowered for Q4)'
+        },
+        output: 'Market sentiment check completed. Short interest increased 40% for TSLA in past month. Management guidance lowered for Q4.'
       }
     ]
   });
@@ -870,19 +1052,141 @@ function Dashboard() {
     setIsChatExpanded(false);
   };
 
-  const handleSectionContextMenu = (e, section) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({
-      section,
-      x: e.clientX,
-      y: e.clientY
-    });
-  };
-
   const handleShowReasoning = (section) => {
     setShowThinkingPopover(section);
     setContextMenu(null);
+  };
+
+  const handleReviewClick = () => {
+    setShowHoldingsPopup(true);
+    setRedFlagTooltip(null); // Reset tooltip when opening popup
+  };
+
+  const toggleHoldingExpansion = (holdingId) => {
+    setExpandedHoldingId(expandedHoldingId === holdingId ? null : holdingId);
+  };
+
+  const handleRedFlagClick = (e, holdingId, flagIndex) => {
+    e.stopPropagation();
+    // Toggle tooltip if clicking the same flag
+    if (redFlagTooltip && redFlagTooltip.holdingId === holdingId && redFlagTooltip.flagIndex === flagIndex) {
+      setRedFlagTooltip(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setRedFlagTooltip({
+      holdingId,
+      flagIndex,
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10
+    });
+  };
+
+  // Close red flag tooltip when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (redFlagTooltip) {
+        setRedFlagTooltip(null);
+      }
+    };
+    if (redFlagTooltip) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [redFlagTooltip]);
+
+  const handleSentimentDriftClick = (e, sector, type, baselineVector, todayVector) => {
+    e.stopPropagation();
+    // Toggle tooltip if clicking the same cell
+    if (sentimentDriftTooltip && sentimentDriftTooltip.sector === sector && sentimentDriftTooltip.type === type) {
+      setSentimentDriftTooltip(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const tooltipHeight = 250; // Estimated tooltip height (increased for safety)
+    const tooltipMargin = 20; // Margin from viewport edges
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+    const spaceBelow = windowHeight - rect.bottom - tooltipMargin;
+    const spaceAbove = rect.top - tooltipMargin;
+    
+    // Position above if there's not enough space below (with margin) OR if there's more space above
+    let positionAbove = spaceBelow < (tooltipHeight + tooltipMargin) || (spaceAbove > spaceBelow && spaceAbove > tooltipHeight);
+    
+    // Calculate y position, ensuring tooltip stays within viewport
+    // Note: transform adds offset (10px below, or -100% - 10px above)
+    const transformOffset = 10; // Offset added by transform when positioning below
+    let tooltipY;
+    
+    // Check if positioning below would cause clipping, and force above if so
+    if (!positionAbove) {
+      const testBottomY = rect.bottom + transformOffset + tooltipHeight;
+      if (testBottomY > windowHeight - tooltipMargin) {
+        positionAbove = true;
+      }
+    }
+    
+    if (positionAbove) {
+      // Position above: use top of cell, but ensure tooltip doesn't go above viewport
+      // Transform will move it up by 100% + 10px, so we need to account for that
+      tooltipY = Math.max(tooltipMargin + tooltipHeight + transformOffset, rect.top);
+    } else {
+      // Position below: use bottom of cell
+      // Transform adds 10px offset
+      tooltipY = rect.bottom;
+    }
+    
+    // Clamp x position within viewport
+    const tooltipWidth = 280;
+    const halfTooltipWidth = tooltipWidth / 2;
+    let tooltipX = rect.left + (rect.width / 2);
+    if (tooltipX - halfTooltipWidth < tooltipMargin) {
+      tooltipX = halfTooltipWidth + tooltipMargin;
+    } else if (tooltipX + halfTooltipWidth > windowWidth - tooltipMargin) {
+      tooltipX = windowWidth - halfTooltipWidth - tooltipMargin;
+    }
+    
+    setSentimentDriftTooltip({
+      sector,
+      type,
+      baselineVector,
+      todayVector,
+      x: tooltipX,
+      y: tooltipY,
+      positionAbove
+    });
+  };
+
+  // Close sentiment drift tooltip when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (sentimentDriftTooltip) {
+        setSentimentDriftTooltip(null);
+      }
+    };
+    if (sentimentDriftTooltip) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [sentimentDriftTooltip]);
+
+  const renderReasoningBubble = (section, title) => {
+    return (
+      <button
+        className="reasoning-bubble"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleShowReasoning(section);
+        }}
+        title="Show Reasoning"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </button>
+    );
   };
 
   const renderThinkingPopover = (section, title) => {
@@ -1213,9 +1517,148 @@ function Dashboard() {
     );
   };
 
+  const renderHoldingsPopup = () => {
+    if (!showHoldingsPopup) return null;
+
+    return (
+      <div className="holdings-popover-centered" onClick={(e) => e.stopPropagation()}>
+        <div className="holdings-popover-overlay" onClick={() => {
+          setShowHoldingsPopup(false);
+          setRedFlagTooltip(null);
+        }}></div>
+        <div className="holdings-popover-content">
+          <div className="holdings-popover-header">
+            <h2>Technology Sector Holdings</h2>
+            <button className="popover-close" onClick={() => {
+              setShowHoldingsPopup(false);
+              setRedFlagTooltip(null);
+            }}>✕</button>
+          </div>
+          <div className="holdings-table-container">
+            <table className="holdings-table">
+              <thead>
+                <tr>
+                  <th>Ticker / CUSIP</th>
+                  <th>Total Value</th>
+                  <th>Red Flags</th>
+                </tr>
+              </thead>
+              <tbody>
+                {technologyHoldings.map((holding) => (
+                  <React.Fragment key={holding.id}>
+                    <tr className="holdings-row">
+                      <td className="ticker-cell">
+                        <div className="ticker-info">
+                          <span className="ticker-symbol">{holding.ticker}</span>
+                          <span className="ticker-cusip">{holding.cusip}</span>
+                        </div>
+                      </td>
+                      <td className="value-cell">
+                        <button
+                          className="value-button"
+                          onClick={() => toggleHoldingExpansion(holding.id)}
+                        >
+                          {formatValue(holding.totalValue)}
+                          <svg 
+                            className={`expand-icon ${expandedHoldingId === holding.id ? 'expanded' : ''}`}
+                            width="16" 
+                            height="16" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round"
+                          >
+                            <path d="M6 9l6 6 6-6"/>
+                          </svg>
+                        </button>
+                      </td>
+                      <td className="flags-cell">
+                        <div className="flags-container">
+                          {holding.redFlags.length === 0 ? (
+                            <span className="flag-icon green-flag" title="No red flags">
+                              🟢
+                            </span>
+                          ) : (
+                            holding.redFlags.map((flag, flagIndex) => (
+                              <button
+                                key={flagIndex}
+                                className="flag-icon red-flag"
+                                onClick={(e) => handleRedFlagClick(e, holding.id, flagIndex)}
+                                title={flag}
+                              >
+                                🚩
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedHoldingId === holding.id && (
+                      <tr className="mf-breakdown-row">
+                        <td colSpan="3" className="mf-breakdown-cell">
+                          <div className="mf-breakdown-content">
+                            <div className="mf-breakdown-header">Value per Mutual Fund</div>
+                            <table className="mf-breakdown-table">
+                              <thead>
+                                <tr>
+                                  <th>Mutual Fund</th>
+                                  <th>Value</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {holding.mfBreakdown.map((mf, index) => (
+                                  <tr key={index}>
+                                    <td>{mf.mfName}</td>
+                                    <td>{formatValue(mf.value)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {redFlagTooltip && (() => {
+            const holding = technologyHoldings.find(h => h.id === redFlagTooltip.holdingId);
+            const flagSource = holding?.redFlags[redFlagTooltip.flagIndex];
+            if (!flagSource) return null;
+            return ReactDOM.createPortal(
+              <div
+                className="red-flag-tooltip"
+                style={{
+                  position: 'fixed',
+                  left: `${redFlagTooltip.x}px`,
+                  top: `${redFlagTooltip.y}px`,
+                  transform: 'translateX(-50%) translateY(-100%)',
+                  zIndex: 10001
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="red-flag-tooltip-content">
+                  <div className="red-flag-tooltip-header">Red Flag Source</div>
+                  <div className="red-flag-tooltip-message">{flagSource}</div>
+                </div>
+                <div className="red-flag-tooltip-arrow"></div>
+              </div>,
+              document.body
+            );
+          })()}
+        </div>
+      </div>
+    );
+  };
+
   const [agentActions, setAgentActions] = useState([
     {
       id: 1,
+      actor: 'AI',
       type: 'info',
       time: '09:45 AM',
       title: 'Portfolio Analysis Complete',
@@ -1224,6 +1667,7 @@ function Dashboard() {
     },
     {
       id: 2,
+      actor: 'AI',
       type: 'alert',
       time: '09:47 AM',
       title: 'Price Movement Alert',
@@ -1232,6 +1676,7 @@ function Dashboard() {
     },
     {
       id: 3,
+      actor: 'AI',
       type: 'success',
       time: '09:50 AM',
       title: 'Strategy Meeting Scheduled',
@@ -1240,13 +1685,180 @@ function Dashboard() {
     },
     {
       id: 4,
+      actor: 'AI',
       type: 'warning',
       time: '09:52 AM',
       title: 'Sector Exposure Warning',
       description: 'Technology sector exposure exceeds target allocation by 5%. Preparing rebalancing recommendations.',
       meta: ['Sector', 'Risk']
+    },
+    {
+      id: 5,
+      actor: 'User',
+      type: 'success',
+      time: '09:48 AM',
+      title: 'Manual Trade Executed',
+      description: 'Executed buy order for 100 shares of MSFT at $380.50. Reason: Strong earnings guidance.',
+      meta: ['Trade', 'MSFT']
+    },
+    {
+      id: 6,
+      actor: 'User',
+      type: 'info',
+      time: '09:55 AM',
+      title: 'Portfolio Target Updated',
+      description: 'Adjusted Technology sector allocation target from 35% to 40% to reflect market outlook.',
+      meta: ['Target', 'Allocation']
+    },
+    {
+      id: 7,
+      actor: 'User',
+      type: 'warning',
+      time: '10:05 AM',
+      title: 'Stop Loss Modified',
+      description: 'Updated stop-loss for AAPL position from $165 to $170 per share.',
+      meta: ['Stop-Loss', 'AAPL']
+    },
+    {
+      id: 8,
+      actor: 'AI',
+      type: 'info',
+      time: '10:10 AM',
+      title: 'Risk Recalculation',
+      description: 'Portfolio risk metrics recalculated based on recent trades and allocation changes.',
+      meta: ['Risk', 'Calculation']
     }
   ]);
+
+  // Mock holdings data for Technology sector
+  const technologyHoldings = [
+    {
+      id: 1,
+      ticker: 'AAPL',
+      cusip: '037833100',
+      totalValue: 125000000, // $125M
+      redFlags: [], // Green flag
+      mfBreakdown: [
+        { mfName: 'Tech Growth Fund A', value: 45000000 },
+        { mfName: 'Innovation Equity Fund', value: 38000000 },
+        { mfName: 'Sector Select Fund', value: 42000000 }
+      ]
+    },
+    {
+      id: 2,
+      ticker: 'MSFT',
+      cusip: '594918104',
+      totalValue: 98000000, // $98M
+      redFlags: [], // Green flag
+      mfBreakdown: [
+        { mfName: 'Tech Growth Fund A', value: 35000000 },
+        { mfName: 'Blue Chip Equity Fund', value: 32000000 },
+        { mfName: 'Sector Select Fund', value: 31000000 }
+      ]
+    },
+    {
+      id: 3,
+      ticker: 'GOOGL',
+      cusip: '02079K305',
+      totalValue: 75000000, // $75M
+      redFlags: ['P/E ratio 35% above sector median'], // 1 red flag
+      mfBreakdown: [
+        { mfName: 'Innovation Equity Fund', value: 28000000 },
+        { mfName: 'Tech Growth Fund A', value: 25000000 },
+        { mfName: 'Digital Assets Fund', value: 22000000 }
+      ]
+    },
+    {
+      id: 4,
+      ticker: 'NVDA',
+      cusip: '67066G104',
+      totalValue: 62000000, // $62M
+      redFlags: [], // Green flag
+      mfBreakdown: [
+        { mfName: 'AI & Semiconductors Fund', value: 35000000 },
+        { mfName: 'Tech Growth Fund A', value: 27000000 }
+      ]
+    },
+    {
+      id: 5,
+      ticker: 'META',
+      cusip: '30303M102',
+      totalValue: 48000000, // $48M
+      redFlags: ['SEC investigation pending', 'EBITDA margin declined 15% YoY'], // 2 red flags
+      mfBreakdown: [
+        { mfName: 'Digital Assets Fund', value: 20000000 },
+        { mfName: 'Innovation Equity Fund', value: 18000000 },
+        { mfName: 'Sector Select Fund', value: 10000000 }
+      ]
+    },
+    {
+      id: 6,
+      ticker: 'AMZN',
+      cusip: '023135106',
+      totalValue: 42000000, // $42M
+      redFlags: [], // Green flag
+      mfBreakdown: [
+        { mfName: 'Blue Chip Equity Fund', value: 22000000 },
+        { mfName: 'Tech Growth Fund A', value: 20000000 }
+      ]
+    },
+    {
+      id: 7,
+      ticker: 'TSLA',
+      cusip: '88160R101',
+      totalValue: 35000000, // $35M
+      redFlags: ['Short interest increased 40% in past month', 'Free cash flow negative for 2 consecutive quarters', 'Management guidance lowered for Q4'], // 3 red flags
+      mfBreakdown: [
+        { mfName: 'Innovation Equity Fund', value: 18000000 },
+        { mfName: 'Clean Energy Fund', value: 17000000 }
+      ]
+    },
+    {
+      id: 8,
+      ticker: 'INTC',
+      cusip: '458140100',
+      totalValue: 28000000, // $28M
+      redFlags: [], // Green flag
+      mfBreakdown: [
+        { mfName: 'AI & Semiconductors Fund', value: 15000000 },
+        { mfName: 'Sector Select Fund', value: 13000000 }
+      ]
+    },
+    {
+      id: 9,
+      ticker: 'AMD',
+      cusip: '007903107',
+      totalValue: 22000000, // $22M
+      redFlags: ['EBITDA margin declined 12% YoY'], // 1 red flag
+      mfBreakdown: [
+        { mfName: 'AI & Semiconductors Fund', value: 12000000 },
+        { mfName: 'Tech Growth Fund A', value: 10000000 }
+      ]
+    },
+    {
+      id: 10,
+      ticker: 'CRM',
+      cusip: '79466L302',
+      totalValue: 18500000, // $18.5M
+      redFlags: [], // Green flag
+      mfBreakdown: [
+        { mfName: 'Sector Select Fund', value: 10000000 },
+        { mfName: 'Blue Chip Equity Fund', value: 8500000 }
+      ]
+    }
+  ];
+
+  // Format value with K/M/B shorthand
+  const formatValue = (value) => {
+    if (value >= 1000000000) {
+      return `$${(value / 1000000000).toFixed(2)}B`;
+    } else if (value >= 1000000) {
+      return `$${(value / 1000000).toFixed(2)}M`;
+    } else if (value >= 1000) {
+      return `$${(value / 1000).toFixed(2)}K`;
+    }
+    return `$${value.toLocaleString()}`;
+  };
 
   // Ensure selectedPortfolio has default values for all arrays
   const selectedPortfolio = portfolios.find(p => p.id === selectedPortfolioId) || {
@@ -1767,10 +2379,12 @@ function Dashboard() {
                 {showThinkingPopover === 'risk' && renderThinkingPopover('risk', 'Risk Alerts')}
                 {showThinkingPopover === 'actions' && renderThinkingPopover('actions', 'Today\'s Actions')}
                 {showThinkingPopover === 'performance' && renderThinkingPopover('performance', 'Performance Metrics')}
-                {showThinkingPopover === 'recent' && renderThinkingPopover('recent', 'Recent Actions')}
+                {showThinkingPopover === 'aiActions' && renderThinkingPopover('aiActions', 'Recent AI Actions')}
+                {showThinkingPopover === 'userActions' && renderThinkingPopover('userActions', 'Recent User Actions')}
+                {renderHoldingsPopup()}
                 <div className="agent-thinking-box">
                   <div className="thinking-header">
-                    <h3>AI Portfolio Manager</h3>
+                    <h3>AI Portfolio Assistant</h3>
                     <div className="status-indicator">
                       <div className="status-dot"></div>
                       <span>Active</span>
@@ -1778,19 +2392,19 @@ function Dashboard() {
                   </div>
                   <div className="thinking-content">
                     <div className="agent-main-sections">
-                      <div 
-                        className="thinking-message section-context"
-                        onContextMenu={(e) => handleSectionContextMenu(e, 'briefing')}
-                      >
-                        <h4>Morning Portfolio Briefing</h4>
+                      <div className="thinking-message section-context">
+                        <div className="section-header">
+                          <h4>Morning Portfolio Briefing</h4>
+                          {renderReasoningBubble('briefing', 'Morning Portfolio Briefing')}
+                        </div>
                         <p>Portfolio is currently tracking 2.3% above benchmark YTD. Key positions AAPL and MSFT showing strong momentum.</p>
                       </div>
                       
-                      <div 
-                        className="thinking-insights section-context"
-                        onContextMenu={(e) => handleSectionContextMenu(e, 'risk')}
-                      >
-                        <h4>Risk Alerts</h4>
+                      <div className="thinking-insights section-context">
+                        <div className="section-header">
+                          <h4>Risk Alerts</h4>
+                          {renderReasoningBubble('risk', 'Risk Alerts')}
+                        </div>
                         <table className="analysis-table">
                           <tbody>
                             <tr>
@@ -1798,7 +2412,7 @@ function Dashboard() {
                                 <p className="analysis-item">Technology sector exposure at 37.2% (threshold: 35%)</p>
                               </td>
                               <td className="action-button-cell">
-                                <button className="analysis-action-button">
+                                <button className="analysis-action-button" onClick={handleReviewClick}>
                                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                   </svg>
@@ -1823,11 +2437,11 @@ function Dashboard() {
                         </table>
                       </div>
 
-                      <div 
-                        className="thinking-recommendations section-context"
-                        onContextMenu={(e) => handleSectionContextMenu(e, 'actions')}
-                      >
-                        <h4>Today's Actions</h4>
+                      <div className="thinking-recommendations section-context">
+                        <div className="section-header">
+                          <h4>Today's Actions</h4>
+                          {renderReasoningBubble('actions', 'Today\'s Actions')}
+                        </div>
                         <table className="analysis-table">
                           <tbody>
                             <tr>
@@ -1860,11 +2474,11 @@ function Dashboard() {
                         </table>
                       </div>
 
-                      <div 
-                        className="thinking-performance section-context"
-                        onContextMenu={(e) => handleSectionContextMenu(e, 'performance')}
-                      >
-                        <h4>Performance Metrics</h4>
+                      <div className="thinking-performance section-context">
+                        <div className="section-header">
+                          <h4>Performance Metrics</h4>
+                          {renderReasoningBubble('performance', 'Performance Metrics')}
+                        </div>
                         <div className="metrics-grid">
                           <div className="metric-item">
                             <span className="metric-label">YTD Return</span>
@@ -1885,32 +2499,65 @@ function Dashboard() {
                         </div>
                       </div>
                     </div>
-
-                    <div 
-                      className="agent-action-log section-context"
-                      onContextMenu={(e) => handleSectionContextMenu(e, 'recent')}
-                    >
-                      <h4>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Recent Actions
-                      </h4>
-                      <div className="action-log-list">
-                        {agentActions.map(action => (
-                          <div key={action.id} className={`action-log-item ${action.type}`}>
-                            <div className="action-log-time">{action.time}</div>
-                            <div className="action-log-content">
-                              <div className="action-log-title">{action.title}</div>
-                              <div className="action-log-description">{action.description}</div>
-                              <div className="action-log-meta">
-                                {action.meta.map((tag, index) => (
-                                  <span key={index}>{tag}</span>
-                                ))}
+                    
+                    <div className="actions-column">
+                      <div className="agent-action-log section-context">
+                        <div className="section-header">
+                          <h4>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Recent AI Actions
+                          </h4>
+                          {renderReasoningBubble('aiActions', 'Recent AI Actions')}
+                        </div>
+                        <div className="action-log-list">
+                          {agentActions.filter(action => action.actor === 'AI').map(action => (
+                            <div key={action.id} className={`action-log-item ${action.type}`}>
+                              <div className="action-log-time">{action.time}</div>
+                              <div className="action-log-content">
+                                <div className="action-log-title">{action.title}</div>
+                                <div className="action-log-description">{action.description}</div>
+                                <div className="action-log-meta">
+                                  {action.meta.map((tag, index) => (
+                                    <span key={index}>{tag}</span>
+                                  ))}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="agent-action-log section-context">
+                        <div className="section-header">
+                          <h4>
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                              <circle cx="9" cy="7" r="4"></circle>
+                              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            Recent User Actions
+                          </h4>
+                          {renderReasoningBubble('userActions', 'Recent User Actions')}
+                        </div>
+                        <div className="action-log-list">
+                          {agentActions.filter(action => action.actor === 'User').map(action => (
+                            <div key={action.id} className={`action-log-item ${action.type}`}>
+                              <div className="action-log-time">{action.time}</div>
+                              <div className="action-log-content">
+                                <div className="action-log-title">{action.title}</div>
+                                <div className="action-log-description">{action.description}</div>
+                                <div className="action-log-meta">
+                                  {action.meta.map((tag, index) => (
+                                    <span key={index}>{tag}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1966,11 +2613,11 @@ function Dashboard() {
                   </div>
                   <div className={`panel-content ${isThesisPanelExpanded ? 'expanded' : ''}`}>
                     <div className="thesis-table-container">
-                    <div 
-                      className="thesis-table-wrapper section-context"
-                      onContextMenu={(e) => handleSectionContextMenu(e, 'thesisAtInception')}
-                    >
-                      <h2 className="thesis-section-heading">Thesis at Inception</h2>
+                    <div className="thesis-table-wrapper section-context">
+                      <div className="section-header">
+                        <h2 className="thesis-section-heading">Thesis at Inception</h2>
+                        {renderReasoningBubble('thesisAtInception', 'Thesis at Inception')}
+                      </div>
                       <table className="thesis-table">
                         <thead>
                           <tr>
@@ -2092,12 +2739,12 @@ function Dashboard() {
               </div>
               
               <div className="alpha-decay-section">
-                <h2 className="alpha-decay-heading">Alpha Decay: Inception vs Present</h2>
+                <div className="section-header">
+                  <h2 className="alpha-decay-heading">Alpha Decay: Inception vs Present</h2>
+                  {renderReasoningBubble('alphaDecay', 'Alpha Decay')}
+                </div>
                 <div className="alpha-decay-container">
-                  <div 
-                    className="alpha-decay-table-wrapper section-context"
-                    onContextMenu={(e) => handleSectionContextMenu(e, 'alphaDecay')}
-                  >
+                  <div className="alpha-decay-table-wrapper section-context">
                     <div className="alpha-decay-content">
                       <table className="alpha-decay-table">
                         <thead>
@@ -2148,10 +2795,7 @@ function Dashboard() {
                     </div>
                   </div>
                   {selectedAlphaDecayRow && (
-                    <div 
-                      className="alpha-decay-graph-wrapper section-context"
-                      onContextMenu={(e) => handleSectionContextMenu(e, 'alphaDecay')}
-                    >
+                    <div className="alpha-decay-graph-wrapper section-context">
                       <div className="alpha-decay-graph">
                         <div className="decay-graph-container">
                           {(() => {
@@ -2268,31 +2912,46 @@ function Dashboard() {
               </div>
 
               <div className="sentiment-drift-section">
-                <h2 className="alpha-decay-heading">Sentiment Drift Since Inception</h2>
+                <div className="section-header">
+                  <h2 className="alpha-decay-heading">Sentiment Drift Since Inception</h2>
+                  {renderReasoningBubble('sentimentDrift', 'Sentiment Drift')}
+                </div>
                 <div className="alpha-decay-container">
-                  <div 
-                    className="alpha-decay-table-wrapper section-context"
-                    onContextMenu={(e) => handleSectionContextMenu(e, 'sentimentDrift')}
-                  >
+                  <div className="alpha-decay-table-wrapper section-context">
                     <div className="alpha-decay-content">
                       <table className="alpha-decay-table sentiment-drift-table">
                         <thead>
                           <tr>
                             <th>Sector</th>
-                            <th>Inception v₀</th>
-                            <th>Today vₜ</th>
-                            <th>Cosine Similarity</th>
-                            <th>Drift</th>
+                            <th>Internal Sentiment Drift</th>
+                            <th>External Sentiment Drift</th>
+                            <th>Variance</th>
+                            <th>Status</th>
                           </tr>
                         </thead>
                         <tbody>
                           {thesisData.sectors.map((item, index) => {
-                            const v0 = item.baselineVector || [0,0,0];
-                            const vt = item.todayVector || [0,0,0];
-                            const cos = computeCosineSimilarity(v0, vt);
-                            const drift = 1 - cos; // 0 = no drift, 1 = orthogonal
-                            const cosPct = (cos * 100).toFixed(1);
-                            const driftPct = (drift * 100).toFixed(1);
+                            const internalBaseline = item.internalSentimentBaseline || [0,0,0];
+                            const internalToday = item.internalSentimentToday || [0,0,0];
+                            const externalBaseline = item.externalSentimentBaseline || [0,0,0];
+                            const externalToday = item.externalSentimentToday || [0,0,0];
+                            
+                            const internalCos = computeCosineSimilarity(internalBaseline, internalToday);
+                            const externalCos = computeCosineSimilarity(externalBaseline, externalToday);
+                            
+                            const internalDrift = 1 - internalCos;
+                            const externalDrift = 1 - externalCos;
+                            
+                            // Variance is the absolute difference between internal and external drift
+                            const variance = Math.abs(internalDrift - externalDrift);
+                            
+                            const internalDriftPct = (internalDrift * 100).toFixed(1);
+                            const externalDriftPct = (externalDrift * 100).toFixed(1);
+                            const variancePct = (variance * 100).toFixed(2);
+                            
+                            // Determine status based on variance magnitude
+                            const varianceStatus = variance < 0.05 ? 'low' : variance < 0.15 ? 'med' : 'high';
+                            
                             return (
                               <tr key={`drift-${item.sector}`}>
                                 <td className="sector-name-cell">
@@ -2300,26 +2959,50 @@ function Dashboard() {
                                   {item.sector}
                                 </td>
                                 <td>
-                                  <div className="vector-mini">
-                                    <span className="mini-key">Acc</span><span className="mini-val">{(v0[0] ?? 0).toFixed(2)}</span>
-                                    <span className="mini-key">Prec</span><span className="mini-val">{(v0[1] ?? 0).toFixed(2)}</span>
-                                    <span className="mini-key">Rec</span><span className="mini-val">{(v0[2] ?? 0).toFixed(2)}</span>
+                                  <div 
+                                    className="sentiment-drift-cell clickable-sentiment-drift"
+                                    onClick={(e) => handleSentimentDriftClick(e, item.sector, 'internal', internalBaseline, internalToday)}
+                                    style={{ cursor: 'pointer' }}
+                                  >
+                                    <div className={`cos-score ${internalCos >= 0.9 ? 'high' : internalCos >= 0.75 ? 'med' : 'low'}`}>
+                                      {(internalCos * 100).toFixed(1)}%
+                                    </div>
+                                    <div className="drift-indicator">
+                                      <span className="drift-value">{internalDriftPct}%</span>
+                                    </div>
                                   </div>
                                 </td>
                                 <td>
-                                  <div className="vector-mini">
-                                    <span className="mini-key">Acc</span><span className="mini-val">{(vt[0] ?? 0).toFixed(2)}</span>
-                                    <span className="mini-key">Prec</span><span className="mini-val">{(vt[1] ?? 0).toFixed(2)}</span>
-                                    <span className="mini-key">Rec</span><span className="mini-val">{(vt[2] ?? 0).toFixed(2)}</span>
+                                  <div 
+                                    className="sentiment-drift-cell clickable-sentiment-drift"
+                                    onClick={(e) => handleSentimentDriftClick(e, item.sector, 'external', externalBaseline, externalToday)}
+                                    style={{ cursor: 'pointer' }}
+                                  >
+                                    <div className={`cos-score ${externalCos >= 0.9 ? 'high' : externalCos >= 0.75 ? 'med' : 'low'}`}>
+                                      {(externalCos * 100).toFixed(1)}%
+                                    </div>
+                                    <div className="drift-indicator">
+                                      <span className="drift-value">{externalDriftPct}%</span>
+                                    </div>
                                   </div>
                                 </td>
                                 <td>
-                                  <div className={`cos-score ${cos >= 0.9 ? 'high' : cos >= 0.75 ? 'med' : 'low'}`}>{cosPct}%</div>
+                                  <div className={`variance-cell variance-${varianceStatus}`}>
+                                    <div className="variance-value">{variancePct}%</div>
+                                    <div className="variance-bar">
+                                      <div 
+                                        className="variance-bar-fill" 
+                                        style={{ 
+                                          width: `${Math.min(100, Math.max(0, variance * 500))}%`,
+                                          backgroundColor: varianceStatus === 'high' ? '#e74c3c' : varianceStatus === 'med' ? '#f39c12' : '#27ae60'
+                                        }}
+                                      ></div>
+                                    </div>
+                                  </div>
                                 </td>
                                 <td>
-                                  <div className="drift-bar">
-                                    <div className="drift-bar-fill" style={{ width: `${Math.min(100, Math.max(0, drift * 100))}%` }}></div>
-                                    <span className="drift-label">{driftPct}%</span>
+                                  <div className={`variance-status variance-status-${varianceStatus}`}>
+                                    {varianceStatus === 'high' ? 'High Variance' : varianceStatus === 'med' ? 'Moderate' : 'Aligned'}
                                   </div>
                                 </td>
                               </tr>
@@ -2330,6 +3013,103 @@ function Dashboard() {
                     </div>
                   </div>
                 </div>
+                {sentimentDriftTooltip && ReactDOM.createPortal(
+                  <div 
+                    className="sentiment-drift-tooltip"
+                    style={{
+                      position: 'fixed',
+                      left: `${sentimentDriftTooltip.x}px`,
+                      top: `${sentimentDriftTooltip.y}px`,
+                      transform: sentimentDriftTooltip.positionAbove 
+                        ? 'translate(-50%, calc(-100% - 10px))' 
+                        : 'translate(-50%, 10px)',
+                      zIndex: 10000
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="tooltip-content">
+                      <div className="tooltip-header">
+                        {sentimentDriftTooltip.type === 'internal' ? 'Internal' : 'External'} Sentiment Vectors - {sentimentDriftTooltip.sector}
+                      </div>
+                      <div className="tooltip-baseline">
+                        <div className="baseline-label">Baseline (v₀)</div>
+                        <div className="baseline-vector">
+                          <div className="baseline-item">
+                            <span className="baseline-key">Accuracy:</span>
+                            <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[0] ?? 0).toFixed(2)}</span>
+                          </div>
+                          <div className="baseline-item">
+                            <span className="baseline-key">Precision:</span>
+                            <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[1] ?? 0).toFixed(2)}</span>
+                          </div>
+                          <div className="baseline-item">
+                            <span className="baseline-key">Recall:</span>
+                            <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[2] ?? 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="tooltip-baseline" style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+                        <div className="baseline-label">Today (vₜ)</div>
+                        <div className="baseline-vector">
+                          <div className="baseline-item">
+                            <span className="baseline-key">Accuracy:</span>
+                            <span className="baseline-value">{(sentimentDriftTooltip.todayVector[0] ?? 0).toFixed(2)}</span>
+                          </div>
+                          <div className="baseline-item">
+                            <span className="baseline-key">Precision:</span>
+                            <span className="baseline-value">{(sentimentDriftTooltip.todayVector[1] ?? 0).toFixed(2)}</span>
+                          </div>
+                          <div className="baseline-item">
+                            <span className="baseline-key">Recall:</span>
+                            <span className="baseline-value">{(sentimentDriftTooltip.todayVector[2] ?? 0).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {(() => {
+                      const arrowStyle = {
+                        position: 'absolute',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: 0,
+                        height: 0,
+                        borderLeft: '6px solid transparent',
+                        borderRight: '6px solid transparent'
+                      };
+                      if (sentimentDriftTooltip.positionAbove) {
+                        arrowStyle.bottom = '-6px';
+                        arrowStyle.borderBottom = '6px solid var(--secondary-bg)';
+                      } else {
+                        arrowStyle.top = '-6px';
+                        arrowStyle.borderTop = '6px solid var(--secondary-bg)';
+                      }
+                      
+                      const arrowBorderStyle = {
+                        position: 'absolute',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: 0,
+                        height: 0,
+                        borderLeft: '7px solid transparent',
+                        borderRight: '7px solid transparent'
+                      };
+                      if (sentimentDriftTooltip.positionAbove) {
+                        arrowBorderStyle.bottom = '1px';
+                        arrowBorderStyle.borderBottom = '7px solid var(--border-color)';
+                      } else {
+                        arrowBorderStyle.top = '1px';
+                        arrowBorderStyle.borderTop = '7px solid var(--border-color)';
+                      }
+                      
+                      return (
+                        <div className="tooltip-arrow" style={arrowStyle}>
+                          <div style={arrowBorderStyle}></div>
+                        </div>
+                      );
+                    })()}
+                  </div>,
+                  document.body
+                )}
               </div>
             </div>
             </div>
@@ -2367,12 +3147,10 @@ function Dashboard() {
                 </div>
 
                 <div className="bias-grid">
-                  <div 
-                    className="bias-card section-context"
-                    onContextMenu={(e) => handleSectionContextMenu(e, 'turnoverRate')}
-                  >
+                  <div className="bias-card section-context">
                     <div className="metric-title">
                       Turnover Rate %
+                      {renderReasoningBubble('turnoverRate', 'Turnover Rate %')}
                       <button
                         type="button"
                         className="info-icon"
@@ -2389,12 +3167,10 @@ function Dashboard() {
                     <div className="meter"><div className={`meter-fill ${biasStatus.turnoverRate(biasMetrics.turnoverRatePct)}`} style={{ width: `${Math.min(100, biasMetrics.turnoverRatePct)}%` }} /></div>
                   </div>
 
-                  <div 
-                    className="bias-card section-context"
-                    onContextMenu={(e) => handleSectionContextMenu(e, 'winHoldLossHold')}
-                  >
+                  <div className="bias-card section-context">
                     <div className="metric-title">
                       Winning Hold ÷ Losing Hold
+                      {renderReasoningBubble('winHoldLossHold', 'Winning Hold ÷ Losing Hold')}
                       <button
                         type="button"
                         className="info-icon"
@@ -2411,12 +3187,10 @@ function Dashboard() {
                     <div className="meter"><div className={`meter-fill ${biasStatus.winHoldLossHold(biasMetrics.winHoldToLossHold)}`} style={{ width: `${Math.min(100, (biasMetrics.winHoldToLossHold / 2.0) * 100)}%` }} /></div>
                   </div>
 
-                  <div 
-                    className="bias-card section-context"
-                    onContextMenu={(e) => handleSectionContextMenu(e, 'addToLoser')}
-                  >
+                  <div className="bias-card section-context">
                     <div className="metric-title">
                       Add-to-Loser %
+                      {renderReasoningBubble('addToLoser', 'Add-to-Loser %')}
                       <button
                         type="button"
                         className="info-icon"
@@ -2433,12 +3207,10 @@ function Dashboard() {
                     <div className="meter"><div className={`meter-fill ${biasStatus.addToLoser(biasMetrics.addToLoserPct)}`} style={{ width: `${Math.min(100, biasMetrics.addToLoserPct)}%` }} /></div>
                   </div>
 
-                  <div 
-                    className="bias-card section-context"
-                    onContextMenu={(e) => handleSectionContextMenu(e, 'reentryAfterStop')}
-                  >
+                  <div className="bias-card section-context">
                     <div className="metric-title">
                       Re-entry AFTER Stop-Loss %
+                      {renderReasoningBubble('reentryAfterStop', 'Re-entry After Stop-Loss %')}
                       <button
                         type="button"
                         className="info-icon"
@@ -2476,12 +3248,10 @@ function Dashboard() {
                     <div className="meter"><div className={`meter-fill ${biasStatus.reentryAfterStop(biasMetrics.reentryAfterStopPct)}`} style={{ width: `${Math.min(100, biasMetrics.reentryAfterStopPct)}%` }} /></div>
                   </div>
 
-                  <div 
-                    className="bias-card section-context"
-                    onContextMenu={(e) => handleSectionContextMenu(e, 'alertRate')}
-                  >
+                  <div className="bias-card section-context">
                     <div className="metric-title">
                       Bias Alert Trigger Rate
+                      {renderReasoningBubble('alertRate', 'Bias Alert Trigger Rate')}
                       <button
                         type="button"
                         className="info-icon"
@@ -2498,12 +3268,10 @@ function Dashboard() {
                     <div className="meter"><div className={`meter-fill ${biasStatus.alertRate(biasMetrics.biasAlertRatePer100)}`} style={{ width: `${Math.min(100, (biasMetrics.biasAlertRatePer100 / 2.0) * 100)}%` }} /></div>
                   </div>
 
-                  <div 
-                    className="bias-card section-context"
-                    onContextMenu={(e) => handleSectionContextMenu(e, 'overrideRate')}
-                  >
+                  <div className="bias-card section-context">
                     <div className="metric-title">
                       PM Override Rate
+                      {renderReasoningBubble('overrideRate', 'PM Override Rate')}
                       <button
                         type="button"
                         className="info-icon"
