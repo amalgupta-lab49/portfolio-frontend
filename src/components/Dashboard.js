@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import axios from 'axios';
+import ShowReasoning from './ShowReasoning';
+import DecisionTrace from './DecisionTrace';
 import './Dashboard.css';
 
 function Dashboard() {
@@ -195,6 +197,8 @@ function Dashboard() {
   const [showHoldingsPopup, setShowHoldingsPopup] = useState(false);
   const [expandedHoldingId, setExpandedHoldingId] = useState(null);
   const [redFlagTooltip, setRedFlagTooltip] = useState(null); // { holdingId: number, flagIndex: number, x: number, y: number }
+  const [showOptimizationPopup, setShowOptimizationPopup] = useState(false);
+  const [actionsPopover, setActionsPopover] = useState(null); // { type: 'execute' | 'schedule' }
 
   // Bias Sentinel definitions
   const biasDefinitions = {
@@ -248,19 +252,6 @@ function Dashboard() {
         kind: 'text',
         prompt: `Calculate Volatility and Exposure Risk per sector/Fund/Or Overall, and for any risks get Top-10-holdings with flags as a response. Evaluate current portfolio volatility vs target and propose 1 mitigation using 30D realized volatility and beta`,
         output: `Volatility and Exposure Risk Analysis: Overall portfolio volatility (18.5%) exceeds target (15%). Technology sector shows highest exposure risk at 37.2% (threshold: 35%). Top-10 holdings with flags: GOOGL (P/E ratio 35% above sector median), META (SEC investigation pending, EBITDA margin declined 15% YoY), TSLA (Short interest increased 40% in past month, Free cash flow negative for 2 consecutive quarters, Management guidance lowered for Q4), AMD (EBITDA margin declined 12% YoY). Mitigation: increase allocation to lower beta names by 2-4% and introduce short-duration T-Bills to dampen variance.`
-      },
-      {
-        id: 'r2',
-        time: '09:50 AM',
-        title: 'Risk Toolkit: Volatility Check',
-        kind: 'tool',
-        prompt: `Run risk toolkit check for realized volatility vs target`,
-        tool: {
-          name: 'risk.volatilityCheck',
-          inputs: { realizedVol: 18.5, targetVol: 15.0, beta: 1.2 },
-          result: 'Volatility exceeds target by 3.5 percentage points'
-        },
-        output: 'Toolkit confirms breach; mitigation required'
       }
     ],
     actions: [
@@ -502,39 +493,6 @@ function Dashboard() {
         kind: 'text',
         prompt: `Calculate variance between internal and external sentiment drift. Analyze sentiment drift by comparing inception sentiment vectors (v₀) with today's sentiment vectors (vₜ) using cosine similarity for both internal (portfolio manager's view) and external (market consensus) sentiment. Calculate variance as the absolute difference between internal and external drift. Identify sectors with significant variance between internal and external sentiment changes.`,
         output: 'Sentiment drift analysis comparing internal vs external sentiment: Technology sector shows internal drift of 7.2% vs external drift of 5.8% (variance: 1.4% - Aligned). Financial sector shows internal drift of 8.1% vs external drift of 6.5% (variance: 1.6% - Aligned). Healthcare sector shows internal drift of 1.7% vs external drift of 1.9% (variance: 0.2% - Aligned). Consumer sector shows internal drift of 4.8% vs external drift of 5.2% (variance: 0.4% - Aligned). Utilities sector shows internal drift of 3.8% vs external drift of 4.1% (variance: 0.3% - Aligned). Overall, internal and external sentiment drifts are well-aligned across all sectors, indicating portfolio manager\'s view aligns with market consensus.'
-      },
-      {
-        id: 'sd2',
-        time: '10:26 AM',
-        title: 'Variance Calculation - Internal vs External Sentiment',
-        kind: 'tool',
-        prompt: `Calculate cosine similarity for both internal and external sentiment vectors, then compute variance (absolute difference) between internal and external drift for each sector`,
-        tool: {
-          name: 'sentiment.calculateVariance',
-          inputs: { 
-            internalBaseline: [0.78, 0.22, 0.12], 
-            internalToday: [0.72, 0.26, 0.16],
-            externalBaseline: [0.72, 0.28, 0.18],
-            externalToday: [0.68, 0.30, 0.20],
-            sector: 'Technology'
-          },
-          result: 'Internal drift: 7.2%, External drift: 5.8%, Variance: 1.4%'
-        },
-        output: 'Technology sector: Internal sentiment drift (7.2%) vs External sentiment drift (5.8%) = Variance of 1.4% (Aligned). Low variance indicates portfolio manager\'s internal view closely matches external market sentiment.'
-      },
-      {
-        id: 'sd3',
-        time: '10:27 AM',
-        title: 'Drift Metric Interpretation',
-        kind: 'bullets',
-        prompt: `Interpret drift metrics and provide insights on what cosine similarity values mean for portfolio management`,
-        bullets: [
-          'Cosine similarity > 0.95: Minimal drift, sentiment consistent',
-          'Cosine similarity 0.85-0.95: Moderate drift, monitor closely',
-          'Cosine similarity < 0.85: Significant drift, review thesis',
-          'Drift = 1 - cosine similarity, represents magnitude of change'
-        ],
-        output: 'Drift metrics indicate sentiment stability across most sectors. Consumer sector shows highest drift at 8% but remains within acceptable range.'
       }
     ],
     turnoverRate: [
@@ -1055,11 +1013,43 @@ function Dashboard() {
   const handleShowReasoning = (section) => {
     setShowThinkingPopover(section);
     setContextMenu(null);
+    setBiasPopover(null);
+    setBiasInfoPopover(null);
+  };
+
+  const handleCloseReasoning = () => {
+    setShowThinkingPopover(null);
+  };
+
+  const handleAskAgentFromReasoning = (content) => {
+    if (!content) return;
+    setShowThinkingPopover(null);
+    setContextMenu(null);
+    setBiasPopover(null);
+    setBiasInfoPopover(null);
+    setChatInput(content);
+    setShowChatbot(true);
+    setChatMessages([]);
   };
 
   const handleReviewClick = () => {
     setShowHoldingsPopup(true);
     setRedFlagTooltip(null); // Reset tooltip when opening popup
+  };
+
+  const handleOptimizeClick = () => {
+    setShowOptimizationPopup(true);
+  };
+
+  const handleActionButtonClick = (e, type) => {
+    e.stopPropagation();
+
+    if (actionsPopover && actionsPopover.type === type) {
+      setActionsPopover(null);
+      return;
+    }
+
+    setActionsPopover({ type });
   };
 
   const toggleHoldingExpansion = (holdingId) => {
@@ -1115,7 +1105,7 @@ function Dashboard() {
     
     // Calculate y position, ensuring tooltip stays within viewport
     // Note: transform adds offset (10px below, or -100% - 10px above)
-    const transformOffset = 10; // Offset added by transform when positioning below
+    const transformOffset = 12; // Offset added by transform when positioning below
     let tooltipY;
     
     // Check if positioning below would cause clipping, and force above if so
@@ -1170,261 +1160,18 @@ function Dashboard() {
     }
   }, [sentimentDriftTooltip]);
 
-  const renderReasoningBubble = (section, title) => {
-    return (
-      <button
-        className="reasoning-bubble"
-        onClick={(e) => {
-          e.stopPropagation();
-          handleShowReasoning(section);
-        }}
-        title="Show Reasoning"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-          <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg>
-      </button>
-    );
-  };
-
-  const renderThinkingPopover = (section, title) => {
-    if (showThinkingPopover !== section) return null;
-    const logs = sectionThoughtLogs[section] || [];
-    const hasToolInputs = logs.some(x => x.kind === 'tool' && x.tool?.inputs);
-
-    const showCopyNotification = (e) => {
-      setCopyNotification({
-        x: e.clientX,
-        y: e.clientY
-      });
+  // Close actions popover when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (actionsPopover) {
+        setActionsPopover(null);
+      }
     };
-
-    const copyPrompts = (e) => {
-      if (!navigator?.clipboard) return;
-      const formatted = logs.map((x, index) => {
-        return `=== Entry ${index + 1}: ${x.title} ===\nTime: ${x.time}\n\nPROMPT:\n${x.prompt}`;
-      }).join('\n\n\n');
-      navigator.clipboard.writeText(formatted);
-      showCopyNotification(e);
-    };
-
-    const copyOutputs = (e) => {
-      if (!navigator?.clipboard) return;
-      const formatted = logs.map((x, index) => {
-        return `=== Entry ${index + 1}: ${x.title} ===\nTime: ${x.time}\n\nOUTPUT:\n${x.output}`;
-      }).join('\n\n\n');
-      navigator.clipboard.writeText(formatted);
-      showCopyNotification(e);
-    };
-
-    const copyAll = (e) => {
-      if (!navigator?.clipboard) return;
-      const formatted = logs.map((x, index) => {
-        let entry = `=== Entry ${index + 1}: ${x.title} ===\nTime: ${x.time}\n\nPROMPT:\n${x.prompt}`;
-        
-        if (x.kind === 'tool' && x.tool?.inputs) {
-          entry += `\n\nTOOL INPUTS:\n${JSON.stringify(x.tool.inputs, null, 2)}`;
-        }
-        
-        if (x.kind === 'bullets' && x.bullets) {
-          entry += `\n\nKEY POINTS:\n${x.bullets.map(b => `- ${b}`).join('\n')}`;
-        }
-        
-        if (x.kind === 'code' && x.code?.content) {
-          entry += `\n\nCODE (${x.code.language}):\n${x.code.content}`;
-        }
-        
-        entry += `\n\nOUTPUT:\n${x.output}`;
-        return entry;
-      }).join('\n\n\n');
-      navigator.clipboard.writeText(formatted);
-      showCopyNotification(e);
-    };
-
-    const copyToolInputs = (e) => {
-      if (!navigator?.clipboard) return;
-      const toolEntries = logs.filter(x => x.kind === 'tool' && x.tool?.inputs);
-      const formatted = toolEntries.map((x, index) => {
-        return `=== Entry ${index + 1}: ${x.title} ===\nTime: ${x.time}\nTool: ${x.tool.name}\n\nTOOL INPUTS:\n${JSON.stringify(x.tool.inputs, null, 2)}`;
-      }).join('\n\n\n');
-      navigator.clipboard.writeText(formatted);
-      showCopyNotification(e);
-    };
-
-    const handleAskAgent = () => {
-      // Format all content similar to copyAll
-      const formatted = logs.map((x, index) => {
-        let entry = `=== Entry ${index + 1}: ${x.title} ===\nTime: ${x.time}\n\nPROMPT:\n${x.prompt}`;
-        
-        if (x.kind === 'tool' && x.tool?.inputs) {
-          entry += `\n\nTOOL INPUTS:\n${JSON.stringify(x.tool.inputs, null, 2)}`;
-        }
-        
-        if (x.kind === 'bullets' && x.bullets) {
-          entry += `\n\nKEY POINTS:\n${x.bullets.map(b => `- ${b}`).join('\n')}`;
-        }
-        
-        if (x.kind === 'code' && x.code?.content) {
-          entry += `\n\nCODE (${x.code.language}):\n${x.code.content}`;
-        }
-        
-        entry += `\n\nOUTPUT:\n${x.output}`;
-        return entry;
-      }).join('\n\n\n');
-      
-      // Close all popovers
-      setShowThinkingPopover(null);
-      setContextMenu(null);
-      setBiasPopover(null);
-      setBiasInfoPopover(null);
-      
-      // Set chat input with formatted content
-      setChatInput(formatted);
-      
-      // Show chatbot
-      setShowChatbot(true);
-      setChatMessages([]);
-    };
-
-    return (
-      <div className="thinking-popover-centered" onClick={(e) => e.stopPropagation()}>
-        <div className="thinking-popover-overlay" onClick={() => setShowThinkingPopover(null)}></div>
-        <div className="thinking-popover-content">
-        <div className="thinking-popover-header">
-          <span>{title} - Agent Thoughts</span>
-          <button className="popover-close" onClick={() => setShowThinkingPopover(null)}>✕</button>
-        </div>
-        <div className="thinking-actions">
-          <button 
-            className="analysis-action-button secondary"
-            onClick={copyPrompts}
-          >Copy Prompts</button>
-          <button 
-            className="analysis-action-button secondary"
-            onClick={copyOutputs}
-          >Copy Outputs</button>
-          {hasToolInputs && (
-            <button 
-              className="analysis-action-button secondary"
-              onClick={copyToolInputs}
-            >Copy Tool Inputs</button>
-          )}
-          <button 
-            className="analysis-action-button secondary"
-            onClick={copyAll}
-          >Copy All</button>
-          <button 
-            className="analysis-action-button ask-agent-button"
-            onClick={handleAskAgent}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              <line x1="9" y1="10" x2="15" y2="10"></line>
-              <line x1="12" y1="7" x2="12" y2="13"></line>
-            </svg>
-            Ask Agent
-          </button>
-        </div>
-        <div className="thinking-panel">
-          <div className="thinking-log">
-            {logs.map(entry => (
-              <div key={entry.id} className="thinking-item">
-                <div className="thinking-item-header">
-                  <div className="thinking-item-meta">
-                    <span className="thinking-time">{entry.time}</span>
-                    <span className="thinking-title">{entry.title}</span>
-                    <span className={`thinking-kind pill kind-${entry.kind}`}>{entry.kind}</span>
-                  </div>
-                  <div className="thinking-item-actions">
-                    {editingThoughtId === entry.id ? (
-                      <>
-                        <button className="tiny-button" onClick={() => saveEdit(entry, section)}>Save</button>
-                        <button className="tiny-button ghost" onClick={cancelEdit}>Cancel</button>
-                      </>
-                    ) : (
-                      <>
-                        <button className="tiny-button" onClick={() => beginEdit(entry, section)}>Edit</button>
-                        <button className="tiny-button" onClick={() => rerunThinking(entry, section)}>Re-run</button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="thinking-blocks">
-                  <div className="thinking-block">
-                    <div className="thinking-block-label">Prompt</div>
-                    {editingThoughtId === entry.id ? (
-                      <textarea className="thinking-input" value={editPrompt} onChange={(e) => setEditPrompt(e.target.value)} />
-                    ) : (
-                      <pre className="thinking-code"><code>{entry.prompt}</code></pre>
-                    )}
-                  </div>
-
-                  {entry.kind === 'tool' && (
-                    <div className="thinking-block">
-                      <div className="thinking-block-label">Tool Inputs ({entry.tool?.name})</div>
-                      {editingThoughtId === entry.id ? (
-                        <div className="tool-inputs">
-                          {Object.keys(editToolInputs).map((key) => (
-                            <label key={key} className="tool-input-row">
-                              <span>{key}</span>
-                              <input
-                                className="tool-input"
-                                type="text"
-                                value={String(editToolInputs[key])}
-                                onChange={(e) => setEditToolInputs({ ...editToolInputs, [key]: e.target.value })}
-                              />
-                            </label>
-                          ))}
-                        </div>
-                      ) : (
-                        <pre className="thinking-code"><code>{JSON.stringify(entry.tool?.inputs || {}, null, 2)}</code></pre>
-                      )}
-                    </div>
-                  )}
-
-                  {entry.kind === 'bullets' && (
-                    <div className="thinking-block">
-                      <div className="thinking-block-label">Key Points</div>
-                      <ul className="thinking-list">
-                        {(entry.bullets || []).map((b, idx) => (
-                          <li key={idx}>{b}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {entry.kind === 'code' && (
-                    <div className="thinking-block">
-                      <div className="thinking-block-label">Code ({entry.code?.language || 'text'})</div>
-                      <pre className="thinking-code"><code>{entry.code?.content || ''}</code></pre>
-                    </div>
-                  )}
-
-                  <div className="thinking-block">
-                    <div className="thinking-block-label">Output</div>
-                    {thinkingEntry && thinkingEntry.section === section && thinkingEntry.entryId === entry.id ? (
-                      <div className="thinking-animation">
-                        <pre className="thinking-code thinking-realtime">
-                          <code>{thinkingText}</code>
-                          <span className="thinking-cursor">▊</span>
-                        </pre>
-                      </div>
-                    ) : (
-                      <pre className="thinking-code"><code>{entry.output}</code></pre>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        </div>
-      </div>
-    );
-  };
+    if (actionsPopover) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [actionsPopover]);
 
   const renderContextMenu = () => {
     if (!contextMenu) return null;
@@ -1655,6 +1402,267 @@ function Dashboard() {
     );
   };
 
+  const renderOptimizationPopup = () => {
+    if (!showOptimizationPopup) return null;
+
+    return (
+      <div className="holdings-popover-centered" onClick={(e) => e.stopPropagation()}>
+        <div className="holdings-popover-overlay" onClick={() => setShowOptimizationPopup(false)}></div>
+        <div className="holdings-popover-content optimization-popup-content">
+          <div className="holdings-popover-header">
+            <h2>Portfolio Optimization Suggestions</h2>
+            <button className="popover-close" onClick={() => setShowOptimizationPopup(false)}>✕</button>
+          </div>
+          <div className="optimization-suggestions-container">
+            {optimizationSuggestions.map((suggestion) => (
+              <div key={suggestion.id} className="optimization-suggestion-card">
+                <div className="suggestion-header">
+                  <div className="suggestion-title-row">
+                    <h3 className="suggestion-title">{suggestion.title}</h3>
+                    <span className={`priority-badge priority-${suggestion.priority.toLowerCase()}`}>
+                      {suggestion.priority}
+                    </span>
+                  </div>
+                  <div className="suggestion-category">{suggestion.category}</div>
+                  <p className="suggestion-description">{suggestion.description}</p>
+                </div>
+                <div className="suggestion-actions">
+                  <div className="actions-header">Recommended Actions:</div>
+                  {suggestion.actions.map((action, index) => (
+                    <div key={index} className="action-item">
+                      <div className="action-content">
+                        <div className="action-text">{action.action}</div>
+                        <div className="action-impact">{action.impact}</div>
+                        <div className="action-sectors">
+                          <span className="sectors-label">Sectors:</span>
+                          {action.sectors.map((sector, idx) => (
+                            <span key={idx} className="sector-tag">{sector}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="suggestion-outcome">
+                  <strong>Expected Outcome:</strong> {suggestion.expectedOutcome}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const handleReentryBadgeClick = (e) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 12;
+    let x = rect.left + rect.width / 2;
+    x = Math.max(margin, Math.min(vw - margin, x));
+    const spaceAbove = rect.top;
+    const spaceBelow = vh - rect.bottom;
+    const positionAbove = spaceAbove >= 120 || spaceAbove > spaceBelow;
+    const y = positionAbove ? rect.top : rect.bottom;
+    setBiasPopover({ x, y, positionAbove });
+  };
+
+  const renderBiasSentinel = () => {
+    const metrics = [
+      {
+        key: 'turnoverRate',
+        title: 'Turnover Rate %',
+        value: biasMetrics.turnoverRatePct,
+        unit: '%',
+        guideline: '< 40%',
+        status: biasStatus.turnoverRate(biasMetrics.turnoverRatePct),
+        maxValue: 100,
+        showMeter: true
+      },
+      {
+        key: 'winHoldLossHold',
+        title: 'Winning Trade Hold Time ÷ Losing Trade Hold Time',
+        value: biasMetrics.winHoldToLossHold,
+        unit: '',
+        guideline: 'Ratio >1.2',
+        status: biasStatus.winHoldLossHold(biasMetrics.winHoldToLossHold),
+        maxValue: 2.0,
+        showMeter: true
+      },
+      {
+        key: 'addToLoser',
+        title: 'Add-to-Loser %',
+        value: biasMetrics.addToLoserPct,
+        unit: '%',
+        guideline: '< 5%',
+        status: biasStatus.addToLoser(biasMetrics.addToLoserPct),
+        maxValue: 20,
+        showMeter: true
+      },
+      {
+        key: 'reentryAfterStop',
+        title: 'Re-entry AFTER Stop-Loss %',
+        value: biasMetrics.reentryAfterStopPct,
+        unit: '%',
+        guideline: '< 10%',
+        status: biasStatus.reentryAfterStop(biasMetrics.reentryAfterStopPct),
+        maxValue: 30,
+        showMeter: true,
+        showBadge: true
+      },
+      {
+        key: 'alertRate',
+        title: 'Bias Alert Trigger Rate',
+        value: biasMetrics.biasAlertRatePer100,
+        unit: ' /100 positions',
+        guideline: '< 1.0 alerts',
+        status: biasStatus.alertRate(biasMetrics.biasAlertRatePer100),
+        maxValue: 3.0,
+        showMeter: true
+      },
+      {
+        key: 'overrideRate',
+        title: 'PM Override Rate',
+        value: biasMetrics.overrideRatePct,
+        unit: '%',
+        guideline: '30–70% sweet-spot',
+        status: biasStatus.overrideRate(biasMetrics.overrideRatePct),
+        minValue: 0,
+        maxValue: 100,
+        showRangeMeter: true
+      }
+    ];
+
+    return (
+      <>
+        <div className="bias-header">
+          <h2>Bias Sentinel</h2>
+          <p className="bias-sub">Behavioral bias detection metrics</p>
+        </div>
+        <div className="bias-grid">
+          {metrics.map((metric) => (
+            <div key={metric.key} className="bias-card">
+              <div className="metric-title">
+                <span>{metric.title}</span>
+                <ShowReasoning
+                  section={metric.key}
+                  title={metric.title}
+                  logs={sectionThoughtLogs[metric.key]}
+                  {...showReasoningCommonProps}
+                />
+                <button
+                  className="info-icon"
+                  onClick={(e) => handleInfoIconClick(e, metric.key)}
+                  title="Info"
+                >
+                  i
+                </button>
+                {metric.showBadge && (
+                  <button
+                    className="tip-badge alert-badge"
+                    onClick={handleReentryBadgeClick}
+                    title="Alert"
+                  >
+                    1
+                  </button>
+                )}
+              </div>
+              <div className="metric-row">
+                <span className="metric-value">
+                  {metric.value.toFixed(metric.key === 'winHoldLossHold' ? 2 : 1)}{metric.unit}
+                </span>
+                <span className={`status-chip ${metric.status}`}>
+                  {metric.status === 'ok' ? 'OK' : metric.status === 'warn' ? 'WARN' : 'ALERT'}
+                </span>
+              </div>
+              <div className="metric-guideline">{metric.guideline}</div>
+              {metric.showMeter && (
+                <div className="meter">
+                  <div
+                    className={`meter-fill ${metric.status}`}
+                    style={{
+                      width: `${Math.min(100, (metric.value / metric.maxValue) * 100)}%`
+                    }}
+                  />
+                </div>
+              )}
+              {metric.showRangeMeter && (
+                <div className="range-meter">
+                  <div className="range-band bad" style={{ width: '30%' }} />
+                  <div className="range-band ok" style={{ width: '40%' }} />
+                  <div className="range-band warn" style={{ width: '30%' }} />
+                  <div
+                    className="needle"
+                    style={{
+                      left: `${metric.value}%`,
+                      transform: 'translateX(-50%)'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {biasPopover && ReactDOM.createPortal(
+          <div
+            className="bias-popover"
+            style={{
+              position: 'fixed',
+              left: `${biasPopover.x}px`,
+              top: `${biasPopover.y}px`,
+              transform: `translateX(-50%) ${biasPopover.positionAbove ? 'translateY(-100%)' : ''}`,
+              zIndex: 10000,
+              marginTop: biasPopover.positionAbove ? '-8px' : '8px',
+              marginBottom: biasPopover.positionAbove ? '8px' : '-8px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="tooltip-content">
+              <div className="tooltip-message">
+                You've re-entered AAPL within 12 days of a stop-loss exit – pattern resembles past revenge trades (−3.7 % avg).
+              </div>
+            </div>
+            <div className="tooltip-arrow" style={{
+              [biasPopover.positionAbove ? 'bottom' : 'top']: '-6px',
+              left: '50%',
+              transform: 'translateX(-50%)'
+            }} />
+          </div>,
+          document.body
+        )}
+        {biasInfoPopover && ReactDOM.createPortal(
+          <div
+            className="bias-info-popover"
+            style={{
+              position: 'fixed',
+              left: `${biasInfoPopover.x}px`,
+              top: `${biasInfoPopover.y}px`,
+              transform: `translateX(-50%) ${biasInfoPopover.positionAbove ? 'translateY(-100%)' : ''}`,
+              zIndex: 10000,
+              marginTop: biasInfoPopover.positionAbove ? '-8px' : '8px',
+              marginBottom: biasInfoPopover.positionAbove ? '8px' : '-8px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="tooltip-content">
+              <div className="tooltip-message">
+                {biasDefinitions[biasInfoPopover.metric]}
+              </div>
+            </div>
+            <div className="tooltip-arrow" style={{
+              [biasInfoPopover.positionAbove ? 'bottom' : 'top']: '-6px',
+              left: '50%',
+              transform: 'translateX(-50%)'
+            }} />
+          </div>,
+          document.body
+        )}
+      </>
+    );
+  };
+
   const [agentActions, setAgentActions] = useState([
     {
       id: 1,
@@ -1847,6 +1855,114 @@ function Dashboard() {
       ]
     }
   ];
+
+  // Mock optimization suggestions data
+  const optimizationSuggestions = [
+    {
+      id: 1,
+      category: 'Volatility Reduction',
+      priority: 'High',
+      title: 'Reduce Portfolio Volatility',
+      description: 'Current volatility (18.5%) exceeds target (15%) by 3.5 percentage points.',
+      actions: [
+        {
+          action: 'Increase allocation to lower beta names by 2-4%',
+          impact: 'Expected volatility reduction: -1.2%',
+          sectors: ['Utilities', 'Consumer Staples']
+        },
+        {
+          action: 'Introduce short-duration T-Bills (5-10% allocation)',
+          impact: 'Expected volatility reduction: -0.8%',
+          sectors: ['Fixed Income']
+        },
+        {
+          action: 'Reduce Technology sector exposure by 2-3%',
+          impact: 'Expected volatility reduction: -0.5%',
+          sectors: ['Technology']
+        }
+      ],
+      expectedOutcome: 'Portfolio volatility reduced to ~15.5% (within acceptable range)'
+    },
+    {
+      id: 2,
+      category: 'Sector Rebalancing',
+      priority: 'Medium',
+      title: 'Rebalance Technology Sector Exposure',
+      description: 'Technology sector exposure at 37.2% exceeds threshold of 35%.',
+      actions: [
+        {
+          action: 'Trim Technology positions by 2-3%',
+          impact: 'Reduces concentration risk',
+          sectors: ['Technology']
+        },
+        {
+          action: 'Reallocate to Financial and Healthcare sectors',
+          impact: 'Improves diversification',
+          sectors: ['Financial', 'Healthcare']
+        }
+      ],
+      expectedOutcome: 'Technology exposure reduced to ~35%, improved sector diversification'
+    },
+    {
+      id: 3,
+      category: 'Risk-Adjusted Returns',
+      priority: 'Medium',
+      title: 'Optimize Sharpe Ratio',
+      description: 'Current Sharpe ratio (1.8) can be improved through better risk-adjusted positioning.',
+      actions: [
+        {
+          action: 'Increase positions in high Sharpe ratio names',
+          impact: 'Expected Sharpe improvement: +0.1-0.2',
+          sectors: ['Technology', 'Financial']
+        },
+        {
+          action: 'Reduce positions with low risk-adjusted returns',
+          impact: 'Improves overall portfolio efficiency',
+          sectors: ['Consumer']
+        }
+      ],
+      expectedOutcome: 'Sharpe ratio improved to ~1.9-2.0'
+    }
+  ];
+
+
+  const actionDetails = {
+    execute: {
+      title: 'Execute Technology Rebalance',
+      subtitle: 'Action Plan for Reducing Technology Concentration',
+      description: 'Trim overweight technology holdings and rotate capital into lower beta sectors to bring allocation within policy bands.',
+      trades: [
+        { ticker: 'AAPL', tradeType: 'Sell', sector: 'Technology', percentHoldings: '1.5%', value: '$18.4M' },
+        { ticker: 'MSFT', tradeType: 'Sell', sector: 'Technology', percentHoldings: '1.0%', value: '$12.6M' },
+        { ticker: 'NVDA', tradeType: 'Sell', sector: 'Technology', percentHoldings: '0.5%', value: '$9.8M' },
+        { ticker: 'XLU ETF', tradeType: 'Buy', sector: 'Utilities', percentHoldings: '0.8%', value: '$9.0M' },
+        { ticker: 'XLP ETF', tradeType: 'Buy', sector: 'Consumer Staples', percentHoldings: '0.7%', value: '$7.5M' },
+        { ticker: 'UST-BILL', tradeType: 'Buy', sector: 'Fixed Income', percentHoldings: '0.5%', value: '$5.6M' }
+      ],
+      metrics: [
+        { label: 'Current Technology Weight', value: '37.2%' },
+        { label: 'Target Technology Weight', value: '35.0%' },
+        { label: 'Projected Volatility Impact', value: '-0.9%' }
+      ],
+      footer: 'Expected completion time: 45 minutes. Execution window optimal between 10:15 - 11:00 AM ET.'
+    },
+    schedule: {
+      title: 'Schedule Earnings Review Session',
+      subtitle: 'Coordinate cross-functional review for upcoming earnings cycle',
+      description: "Prepare coverage teams for next week's earnings releases with a focused agenda and supporting materials.",
+      checklist: [
+        'Invite PM team, sector analysts, and risk partners',
+        'Attach latest earnings prep deck and consensus variance tracker',
+        'Outline key focus tickers: AAPL (Tue), MSFT (Wed), NVDA (Thu)'
+      ],
+      metrics: [
+        { label: 'Suggested Date & Time', value: 'Monday, 9:30 AM ET' },
+        { label: 'Duration', value: '45 minutes' },
+        { label: 'Meeting Mode', value: 'Hybrid (Room 14B + Teams)' }
+      ],
+      footer: 'Auto-reminder will be sent 24 hours prior. Include post-meeting follow-up checklist.'
+    }
+  };
 
   // Format value with K/M/B shorthand
   const formatValue = (value) => {
@@ -2203,6 +2319,44 @@ function Dashboard() {
     }
   }, [biasInfoPopover]);
 
+  const handleCopyNotification = useCallback(({ x, y }) => {
+    setCopyNotification({ x, y });
+  }, []);
+
+  const showReasoningCommonProps = useMemo(() => ({
+    currentSection: showThinkingPopover,
+    onOpen: handleShowReasoning,
+    onClose: handleCloseReasoning,
+    onCopyNotification: handleCopyNotification,
+    onAskAgent: handleAskAgentFromReasoning,
+    editingThoughtId,
+    editPrompt,
+    setEditPrompt,
+    editToolInputs,
+    setEditToolInputs,
+    beginEdit,
+    cancelEdit,
+    saveEdit,
+    rerunThinking,
+    thinkingEntry,
+    thinkingText
+  }), [
+    showThinkingPopover,
+    handleShowReasoning,
+    handleCloseReasoning,
+    handleCopyNotification,
+    handleAskAgentFromReasoning,
+    editingThoughtId,
+    editPrompt,
+    editToolInputs,
+    beginEdit,
+    cancelEdit,
+    saveEdit,
+    rerunThinking,
+    thinkingEntry,
+    thinkingText
+  ]);
+
   if (loading) return <div className="dashboard-loading">Loading portfolio data...</div>;
   if (error) return <div className="dashboard-error">Error: {error}</div>;
 
@@ -2355,6 +2509,12 @@ function Dashboard() {
               >
                 Bias Sentinel
               </button>
+              <button 
+                className={`tab-button ${agentActiveTab === 'decision' ? 'active' : ''}`}
+                onClick={() => setAgentActiveTab('decision')}
+              >
+                Decision Trace
+              </button>
             </div>
 
             {agentActiveTab === 'thesis' && (
@@ -2375,13 +2535,84 @@ function Dashboard() {
                     ✓ Copied to clipboard
                   </div>
                 )}
-                {showThinkingPopover === 'briefing' && renderThinkingPopover('briefing', 'Morning Portfolio Briefing')}
-                {showThinkingPopover === 'risk' && renderThinkingPopover('risk', 'Risk Alerts')}
-                {showThinkingPopover === 'actions' && renderThinkingPopover('actions', 'Today\'s Actions')}
-                {showThinkingPopover === 'performance' && renderThinkingPopover('performance', 'Performance Metrics')}
-                {showThinkingPopover === 'aiActions' && renderThinkingPopover('aiActions', 'Recent AI Actions')}
-                {showThinkingPopover === 'userActions' && renderThinkingPopover('userActions', 'Recent User Actions')}
                 {renderHoldingsPopup()}
+                {renderOptimizationPopup()}
+                {actionsPopover && ReactDOM.createPortal(
+                  <div className="actions-popover-backdrop" onClick={() => setActionsPopover(null)}>
+                    <div
+                      className={`actions-popover-window ${actionsPopover.type === 'execute' ? 'execute' : ''}`}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="actions-popover-header">
+                        <div className="actions-popover-title">
+                          <h3>{actionDetails[actionsPopover.type].title}</h3>
+                          <p>{actionDetails[actionsPopover.type].subtitle}</p>
+                        </div>
+                        <button
+                          className="actions-popover-close"
+                          onClick={() => setActionsPopover(null)}
+                          aria-label="Close"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="actions-popover-body">
+                        <p className="actions-description">{actionDetails[actionsPopover.type].description}</p>
+                        {actionsPopover.type === 'execute' ? (
+                          <div className="actions-trade-table-wrapper">
+                            <table className="actions-trade-table">
+                              <thead>
+                                <tr>
+                                  <th>Ticker</th>
+                                  <th>Trade Type</th>
+                                  <th>Sector</th>
+                                  <th>% of Holdings</th>
+                                  <th>Value</th>
+                                  <th>Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {actionDetails.execute.trades.map((trade, idx) => (
+                                  <tr key={idx}>
+                                    <td>{trade.ticker}</td>
+                                    <td className={`trade-type ${trade.tradeType.toLowerCase()}`}>{trade.tradeType}</td>
+                                    <td>{trade.sector}</td>
+                                    <td>{trade.percentHoldings}</td>
+                                    <td>{trade.value}</td>
+                                    <td>
+                                      <button className="execute-trade-button">Execute Trade</button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="actions-checklist">
+                            <div className="actions-section-label">Checklist</div>
+                            <ul>
+                              {actionDetails[actionsPopover.type].checklist.map((item, idx) => (
+                                <li key={idx}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        <div className="actions-metrics">
+                          {actionDetails[actionsPopover.type].metrics.map((metric, idx) => (
+                            <div key={idx} className="action-metric">
+                              <span className="metric-label">{metric.label}</span>
+                              <span className="metric-value">{metric.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="actions-popover-footer">
+                        {actionDetails[actionsPopover.type].footer}
+                      </div>
+                    </div>
+                  </div>,
+                  document.body
+                )}
                 <div className="agent-thinking-box">
                   <div className="thinking-header">
                     <h3>AI Portfolio Assistant</h3>
@@ -2395,7 +2626,12 @@ function Dashboard() {
                       <div className="thinking-message section-context">
                         <div className="section-header">
                           <h4>Morning Portfolio Briefing</h4>
-                          {renderReasoningBubble('briefing', 'Morning Portfolio Briefing')}
+                          <ShowReasoning
+                            section="briefing"
+                            title="Morning Portfolio Briefing"
+                            logs={sectionThoughtLogs.briefing}
+                            {...showReasoningCommonProps}
+                          />
                         </div>
                         <p>Portfolio is currently tracking 2.3% above benchmark YTD. Key positions AAPL and MSFT showing strong momentum.</p>
                       </div>
@@ -2403,7 +2639,12 @@ function Dashboard() {
                       <div className="thinking-insights section-context">
                         <div className="section-header">
                           <h4>Risk Alerts</h4>
-                          {renderReasoningBubble('risk', 'Risk Alerts')}
+                          <ShowReasoning
+                            section="risk"
+                            title="Risk Alerts"
+                            logs={sectionThoughtLogs.risk}
+                            {...showReasoningCommonProps}
+                          />
                         </div>
                         <table className="analysis-table">
                           <tbody>
@@ -2425,7 +2666,7 @@ function Dashboard() {
                                 <p className="analysis-item">Portfolio volatility above target (18.5% vs 15%)</p>
                               </td>
                               <td className="action-button-cell">
-                                <button className="analysis-action-button">
+                                <button className="analysis-action-button" onClick={handleOptimizeClick}>
                                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                   </svg>
@@ -2440,7 +2681,12 @@ function Dashboard() {
                       <div className="thinking-recommendations section-context">
                         <div className="section-header">
                           <h4>Today's Actions</h4>
-                          {renderReasoningBubble('actions', 'Today\'s Actions')}
+                          <ShowReasoning
+                            section="actions"
+                            title="Today's Actions"
+                            logs={sectionThoughtLogs.actions}
+                            {...showReasoningCommonProps}
+                          />
                         </div>
                         <table className="analysis-table">
                           <tbody>
@@ -2449,7 +2695,7 @@ function Dashboard() {
                                 <p className="analysis-item">Rebalance technology exposure</p>
                               </td>
                               <td className="action-button-cell">
-                                <button className="analysis-action-button">
+                                <button className="analysis-action-button" onClick={(e) => handleActionButtonClick(e, 'execute')}>
                                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                   </svg>
@@ -2462,7 +2708,7 @@ function Dashboard() {
                                 <p className="analysis-item">Review earnings calendar for next week</p>
                               </td>
                               <td className="action-button-cell">
-                                <button className="analysis-action-button">
+                                <button className="analysis-action-button" onClick={(e) => handleActionButtonClick(e, 'schedule')}>
                                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                   </svg>
@@ -2477,7 +2723,12 @@ function Dashboard() {
                       <div className="thinking-performance section-context">
                         <div className="section-header">
                           <h4>Performance Metrics</h4>
-                          {renderReasoningBubble('performance', 'Performance Metrics')}
+                          <ShowReasoning
+                            section="performance"
+                            title="Performance Metrics"
+                            logs={sectionThoughtLogs.performance}
+                            {...showReasoningCommonProps}
+                          />
                         </div>
                         <div className="metrics-grid">
                           <div className="metric-item">
@@ -2509,7 +2760,12 @@ function Dashboard() {
                             </svg>
                             Recent AI Actions
                           </h4>
-                          {renderReasoningBubble('aiActions', 'Recent AI Actions')}
+                          <ShowReasoning
+                            section="aiActions"
+                            title="Recent AI Actions"
+                            logs={sectionThoughtLogs.aiActions}
+                            {...showReasoningCommonProps}
+                          />
                         </div>
                         <div className="action-log-list">
                           {agentActions.filter(action => action.actor === 'AI').map(action => (
@@ -2540,7 +2796,12 @@ function Dashboard() {
                             </svg>
                             Recent User Actions
                           </h4>
-                          {renderReasoningBubble('userActions', 'Recent User Actions')}
+                          <ShowReasoning
+                            section="userActions"
+                            title="Recent User Actions"
+                            logs={sectionThoughtLogs.userActions}
+                            {...showReasoningCommonProps}
+                          />
                         </div>
                         <div className="action-log-list">
                           {agentActions.filter(action => action.actor === 'User').map(action => (
@@ -2586,9 +2847,6 @@ function Dashboard() {
                     ✓ Copied to clipboard
                   </div>
                 )}
-                {showThinkingPopover === 'thesisAtInception' && renderThinkingPopover('thesisAtInception', 'Thesis at Inception')}
-                {showThinkingPopover === 'alphaDecay' && renderThinkingPopover('alphaDecay', 'Alpha Decay Analysis')}
-                {showThinkingPopover === 'sentimentDrift' && renderThinkingPopover('sentimentDrift', 'Sentiment Drift Analysis')}
                 <div className={`collapsible-panel ${!isThesisPanelExpanded ? 'collapsed' : ''}`}>
                   <div 
                     className="panel-header"
@@ -2616,7 +2874,12 @@ function Dashboard() {
                     <div className="thesis-table-wrapper section-context">
                       <div className="section-header">
                         <h2 className="thesis-section-heading">Thesis at Inception</h2>
-                        {renderReasoningBubble('thesisAtInception', 'Thesis at Inception')}
+                        <ShowReasoning
+                          section="thesisAtInception"
+                          title="Thesis at Inception"
+                          logs={sectionThoughtLogs.thesisAtInception}
+                          {...showReasoningCommonProps}
+                        />
                       </div>
                       <table className="thesis-table">
                         <thead>
@@ -2741,7 +3004,12 @@ function Dashboard() {
               <div className="alpha-decay-section">
                 <div className="section-header">
                   <h2 className="alpha-decay-heading">Alpha Decay: Inception vs Present</h2>
-                  {renderReasoningBubble('alphaDecay', 'Alpha Decay')}
+                  <ShowReasoning
+                    section="alphaDecay"
+                    title="Alpha Decay"
+                    logs={sectionThoughtLogs.alphaDecay}
+                    {...showReasoningCommonProps}
+                  />
                 </div>
                 <div className="alpha-decay-container">
                   <div className="alpha-decay-table-wrapper section-context">
@@ -2913,8 +3181,13 @@ function Dashboard() {
 
               <div className="sentiment-drift-section">
                 <div className="section-header">
-                  <h2 className="alpha-decay-heading">Sentiment Drift Since Inception</h2>
-                  {renderReasoningBubble('sentimentDrift', 'Sentiment Drift')}
+                  <h4>Sentiment Drift Since Inception</h4>
+                  <ShowReasoning
+                    section="sentimentDrift"
+                    title="Sentiment Drift"
+                    logs={sectionThoughtLogs.sentimentDrift}
+                    {...showReasoningCommonProps}
+                  />
                 </div>
                 <div className="alpha-decay-container">
                   <div className="alpha-decay-table-wrapper section-context">
@@ -3135,224 +3408,15 @@ function Dashboard() {
                     ✓ Copied to clipboard
                   </div>
                 )}
-                {showThinkingPopover === 'turnoverRate' && renderThinkingPopover('turnoverRate', 'Turnover Rate Analysis')}
-                {showThinkingPopover === 'winHoldLossHold' && renderThinkingPopover('winHoldLossHold', 'Winning Hold ÷ Losing Hold Analysis')}
-                {showThinkingPopover === 'addToLoser' && renderThinkingPopover('addToLoser', 'Add-to-Loser Analysis')}
-                {showThinkingPopover === 'reentryAfterStop' && renderThinkingPopover('reentryAfterStop', 'Re-entry After Stop-Loss Analysis')}
-                {showThinkingPopover === 'alertRate' && renderThinkingPopover('alertRate', 'Bias Alert Trigger Rate Analysis')}
-                {showThinkingPopover === 'overrideRate' && renderThinkingPopover('overrideRate', 'PM Override Rate Analysis')}
-                <div className="bias-header">
-                  <h2>Bias Sentinel</h2>
-                  <p className="bias-sub">Live monitors of behavioral patterns against best-practice guardrails</p>
-                </div>
-
-                <div className="bias-grid">
-                  <div className="bias-card section-context">
-                    <div className="metric-title">
-                      Turnover Rate %
-                      {renderReasoningBubble('turnoverRate', 'Turnover Rate %')}
-                      <button
-                        type="button"
-                        className="info-icon"
-                        onClick={(e) => handleInfoIconClick(e, 'turnoverRate')}
-                        aria-label="Show definition"
-                      >
-                        i
-                      </button>
-                    </div>
-                    <div className="metric-row">
-                      <span className={`status-chip ${biasStatus.turnoverRate(biasMetrics.turnoverRatePct)}`}>{biasMetrics.turnoverRatePct}%</span>
-                      <span className="metric-guideline">Target: &lt; 40% (long-term portfolios)</span>
-                    </div>
-                    <div className="meter"><div className={`meter-fill ${biasStatus.turnoverRate(biasMetrics.turnoverRatePct)}`} style={{ width: `${Math.min(100, biasMetrics.turnoverRatePct)}%` }} /></div>
-                  </div>
-
-                  <div className="bias-card section-context">
-                    <div className="metric-title">
-                      Winning Hold ÷ Losing Hold
-                      {renderReasoningBubble('winHoldLossHold', 'Winning Hold ÷ Losing Hold')}
-                      <button
-                        type="button"
-                        className="info-icon"
-                        onClick={(e) => handleInfoIconClick(e, 'winHoldLossHold')}
-                        aria-label="Show definition"
-                      >
-                        i
-                      </button>
-                    </div>
-                    <div className="metric-row">
-                      <span className={`status-chip ${biasStatus.winHoldLossHold(biasMetrics.winHoldToLossHold)}`}>{biasMetrics.winHoldToLossHold.toFixed(2)}x</span>
-                      <span className="metric-guideline">Target: &gt; 1.20x</span>
-                    </div>
-                    <div className="meter"><div className={`meter-fill ${biasStatus.winHoldLossHold(biasMetrics.winHoldToLossHold)}`} style={{ width: `${Math.min(100, (biasMetrics.winHoldToLossHold / 2.0) * 100)}%` }} /></div>
-                  </div>
-
-                  <div className="bias-card section-context">
-                    <div className="metric-title">
-                      Add-to-Loser %
-                      {renderReasoningBubble('addToLoser', 'Add-to-Loser %')}
-                      <button
-                        type="button"
-                        className="info-icon"
-                        onClick={(e) => handleInfoIconClick(e, 'addToLoser')}
-                        aria-label="Show definition"
-                      >
-                        i
-                      </button>
-                    </div>
-                    <div className="metric-row">
-                      <span className={`status-chip ${biasStatus.addToLoser(biasMetrics.addToLoserPct)}`}>{biasMetrics.addToLoserPct.toFixed(1)}%</span>
-                      <span className="metric-guideline">Target: &lt; 5% of all adds</span>
-                    </div>
-                    <div className="meter"><div className={`meter-fill ${biasStatus.addToLoser(biasMetrics.addToLoserPct)}`} style={{ width: `${Math.min(100, biasMetrics.addToLoserPct)}%` }} /></div>
-                  </div>
-
-                  <div className="bias-card section-context">
-                    <div className="metric-title">
-                      Re-entry AFTER Stop-Loss %
-                      {renderReasoningBubble('reentryAfterStop', 'Re-entry After Stop-Loss %')}
-                      <button
-                        type="button"
-                        className="info-icon"
-                        onClick={(e) => handleInfoIconClick(e, 'reentryAfterStop')}
-                        aria-label="Show definition"
-                      >
-                        i
-                      </button>
-                      <button
-                        type="button"
-                        className="tip-badge alert-badge"
-                        onClick={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const vw = window.innerWidth;
-                          const vh = window.innerHeight;
-                          const margin = 12;
-                          let x = rect.left + rect.width / 2;
-                          x = Math.max(margin, Math.min(vw - margin, x));
-                          // Prefer above if there's space, else below
-                          const spaceAbove = rect.top;
-                          const spaceBelow = vh - rect.bottom;
-                          const positionAbove = spaceAbove >= 160 || spaceAbove > spaceBelow;
-                          const y = positionAbove ? rect.top : rect.bottom;
-                          setBiasPopover({ x, y, positionAbove });
-                        }}
-                        aria-label="Show re-entry insight"
-                      >
-                        1
-                      </button>
-                    </div>
-                    <div className="metric-row">
-                      <span className={`status-chip ${biasStatus.reentryAfterStop(biasMetrics.reentryAfterStopPct)}`}>{biasMetrics.reentryAfterStopPct.toFixed(1)}%</span>
-                      <span className="metric-guideline">Target: &lt; 10%</span>
-                    </div>
-                    <div className="meter"><div className={`meter-fill ${biasStatus.reentryAfterStop(biasMetrics.reentryAfterStopPct)}`} style={{ width: `${Math.min(100, biasMetrics.reentryAfterStopPct)}%` }} /></div>
-                  </div>
-
-                  <div className="bias-card section-context">
-                    <div className="metric-title">
-                      Bias Alert Trigger Rate
-                      {renderReasoningBubble('alertRate', 'Bias Alert Trigger Rate')}
-                      <button
-                        type="button"
-                        className="info-icon"
-                        onClick={(e) => handleInfoIconClick(e, 'alertRate')}
-                        aria-label="Show definition"
-                      >
-                        i
-                      </button>
-                    </div>
-                    <div className="metric-row">
-                      <span className={`status-chip ${biasStatus.alertRate(biasMetrics.biasAlertRatePer100)}`}>{biasMetrics.biasAlertRatePer100.toFixed(2)} /100 pos</span>
-                      <span className="metric-guideline">Target: &lt; 1.0 /100 pos /mo</span>
-                    </div>
-                    <div className="meter"><div className={`meter-fill ${biasStatus.alertRate(biasMetrics.biasAlertRatePer100)}`} style={{ width: `${Math.min(100, (biasMetrics.biasAlertRatePer100 / 2.0) * 100)}%` }} /></div>
-                  </div>
-
-                  <div className="bias-card section-context">
-                    <div className="metric-title">
-                      PM Override Rate
-                      {renderReasoningBubble('overrideRate', 'PM Override Rate')}
-                      <button
-                        type="button"
-                        className="info-icon"
-                        onClick={(e) => handleInfoIconClick(e, 'overrideRate')}
-                        aria-label="Show definition"
-                      >
-                        i
-                      </button>
-                    </div>
-                    <div className="metric-row">
-                      <span className={`status-chip ${biasStatus.overrideRate(biasMetrics.overrideRatePct)}`}>{biasMetrics.overrideRatePct}%</span>
-                      <span className="metric-guideline">Sweet-spot: 30–70%</span>
-                    </div>
-                    <div className="range-meter">
-                      <div className="range-band bad" style={{ width: '15%' }} />
-                      <div className="range-band warn" style={{ width: '15%' }} />
-                      <div className="range-band ok" style={{ width: '40%' }} />
-                      <div className="range-band warn" style={{ width: '15%' }} />
-                      <div className="range-band bad" style={{ width: '15%' }} />
-                      <div className="needle" style={{ left: `${biasMetrics.overrideRatePct}%` }} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bias-footnote">Guidelines are indicative; investigate trend and context before action.</div>
-              {biasPopover && ReactDOM.createPortal(
-                (
-                  <div
-                    className="bias-popover"
-                    style={{
-                      position: 'fixed',
-                      left: `${biasPopover.x}px`,
-                      top: `${biasPopover.y}px`,
-                      transform: biasPopover.positionAbove 
-                        ? 'translate(-50%, calc(-100% - 12px))' 
-                        : 'translate(-50%, 12px)',
-                      zIndex: 10000
-                    }}
-                  >
-                    <div className="tooltip-content">
-                      <div className="tooltip-sector">Re-entry insight</div>
-                      <div className="tooltip-baseline">
-                        <div className="baseline-vector tooltip-message">
-                          You've re-entered AAPL within 12 days of a stop-loss exit – pattern resembles past revenge trades (−3.7 % avg).
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ),
-                document.body
-              )}
-              {biasInfoPopover && ReactDOM.createPortal(
-                (
-                  <div
-                    className="bias-info-popover"
-                    style={{
-                      position: 'fixed',
-                      left: `${biasInfoPopover.x}px`,
-                      top: `${biasInfoPopover.y}px`,
-                      transform: biasInfoPopover.positionAbove 
-                        ? 'translate(-50%, calc(-100% - 12px))' 
-                        : 'translate(-50%, 12px)',
-                      zIndex: 10000
-                    }}
-                  >
-                    <div className="tooltip-content">
-                      <div className="tooltip-sector">Definition</div>
-                      <div className="tooltip-baseline">
-                        <div className="baseline-vector tooltip-message">
-                          {biasDefinitions[biasInfoPopover.metric]}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ),
-                document.body
-              )}
+                {renderBiasSentinel()}
               </div>
               </div>
               {renderChatbot()}
             </div>
+            )}
+
+            {agentActiveTab === 'decision' && (
+              <DecisionTrace showChatbot={showChatbot} renderChatbot={renderChatbot} />
             )}
           </>
         ) : (
