@@ -1181,11 +1181,34 @@
   white-space: nowrap;
 }
 
+.risk-action-button:hover {
+  transform: translateY(-1px);
+  background: var(--negative) !important;
+}
+
+.risk-action-button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--negative)!important;
+  color: white;
+  white-space: nowrap;
+}
+
 .analysis-action-button:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
   background: var(--accent-light);
 }
+
+
 
 /* Show Thinking controls and panel */
 .thinking-controls {
@@ -2488,11 +2511,12 @@
 }
 
 .thinking-insights .analysis-action-button {
-  background: var(--negative);
+  background: linear-gradient(135deg, var(--accent-color), var(--accent-light));
+  color: #fff;
 }
 
 .thinking-insights .analysis-action-button:hover {
-  background: #e74c3c;
+  background: linear-gradient(135deg, #6e3dff, #8d5cff);
 }
 
 /* Today's Actions Styling */
