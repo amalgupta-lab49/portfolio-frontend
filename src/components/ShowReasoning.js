@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 
 const ShowReasoning = ({
   section,
@@ -261,7 +262,7 @@ const ShowReasoning = ({
           <line x1="12" y1="17" x2="12.01" y2="17"></line>
         </svg>
       </button>
-      {isOpen && renderContent()}
+      {isOpen && ReactDOM.createPortal(renderContent(), document.body)}
     </>
   );
 };
