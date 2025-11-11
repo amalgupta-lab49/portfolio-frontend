@@ -2238,6 +2238,29 @@
   gap: 0.5rem;
 }
 
+.thinking-subsection {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.thinking-item-actions .audit-trace-button {
+  background: rgba(15, 118, 110, 0.18);
+  border: 1px solid rgba(13, 148, 136, 0.45);
+  color: rgba(13, 148, 136, 0.95);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+}
+
+.thinking-item-actions .audit-trace-button:hover {
+  background: rgba(13, 148, 136, 0.28);
+  border-color: rgba(13, 148, 136, 0.65);
+  color: rgba(6, 95, 70, 0.98);
+  box-shadow: 0 6px 18px rgba(13, 148, 136, 0.22);
+}
+
 .tiny-button {
   padding: 0.25rem 0.5rem;
   font-size: 0.8rem;
@@ -4583,12 +4606,12 @@
 }
 
 .trace-overlay-tab {
-  background: rgba(124, 77, 255, 0.92);
   color: #fff;
-  padding: 0.45rem 1.1rem;
   font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.03em;
+  background: rgba(124, 77, 255, 0.92);
+  padding: 0.45rem 1.1rem;
 }
 
 .trace-overlay-body {
@@ -4598,6 +4621,59 @@
   color: var(--text-secondary);
   line-height: 1.6;
   background: transparent;
+}
+
+.decision-trace-canvas-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.trace-tab-strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  padding: 0 0.65rem 0.55rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(14px);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.trace-tab {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(246, 247, 249, 0.92);
+  border-radius: 10px 10px 0 0;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: rgba(71, 85, 105, 0.9);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.trace-tab:hover {
+  background: rgba(226, 232, 240, 0.95);
+  border-color: rgba(124, 77, 255, 0.35);
+  color: rgba(88, 28, 135, 0.92);
+}
+
+.trace-tab.active {
+  background: rgba(124, 77, 255, 0.16);
+  border-color: rgba(124, 77, 255, 0.55);
+  color: rgba(76, 29, 149, 0.95);
+  box-shadow: 0 4px 10px rgba(76, 29, 149, 0.12);
+}
+
+.trace-tab.empty {
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  background: transparent;
+  color: rgba(148, 163, 184, 0.8);
+  pointer-events: none;
 }
 
 .trace-context-menu {
@@ -4747,6 +4823,42 @@
   color: rgba(49, 46, 129, 0.9);
   max-width: 120px;
   line-height: 1.1;
+}
+
+.trace-canvas-toolbar {
+  position: absolute;
+  top: calc(1.5rem + 0.18rem);
+  right: calc(1.5rem + 0.3rem);
+  display: flex;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.trace-export-trigger {
+  pointer-events: auto;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.22);
+  color: #f8faff;
+  border-radius: 999px;
+  padding: 0.34rem 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.trace-export-trigger:hover {
+  background: rgba(255, 255, 255, 0.32);
+  border-color: rgba(255, 255, 255, 0.75);
+  color: #eef1ff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.25);
+}
+
+.trace-context-menu.export-menu {
+  min-width: 160px;
 }
 
 .trace-node-instance.selected .trace-node-compact {

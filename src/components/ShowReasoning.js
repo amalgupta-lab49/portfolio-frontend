@@ -10,6 +10,7 @@ const ShowReasoning = ({
   onClose,
   onCopyNotification,
   onAskAgent,
+  onAuditTrace,
   editingThoughtId,
   editPrompt,
   setEditPrompt,
@@ -148,14 +149,34 @@ const ShowReasoning = ({
             ) : (
               safeLogs.map((entry) => {
                 const isEditing = editingThoughtId === entry.id;
-                const isThinking = thinkingEntry && thinkingEntry.section === section && thinkingEntry.entryId === entry.id;
+                const isThinking =
+                  thinkingEntry &&
+                  thinkingEntry.section === section &&
+                  thinkingEntry.entryId === entry.id;
+
+                let baseTitle = entry.title || 'Untitled Entry';
+                let subSectionName =
+                  entry.subSection ||
+                  entry.subsection ||
+                  entry.subSectionName ||
+                  entry.subsectionName ||
+                  '';
+
+                if (!subSectionName && baseTitle.includes(' - ')) {
+                  const parts = baseTitle.split(' - ');
+                  baseTitle = parts.shift();
+                  subSectionName = parts.join(' - ');
+                }
 
                 return (
                   <div key={entry.id} className="thinking-item">
                     <div className="thinking-item-header">
                       <div className="thinking-item-meta">
                         <span className="thinking-time">{entry.time}</span>
-                        <span className="thinking-title">{entry.title}</span>
+                        <span className="thinking-title">{baseTitle}</span>
+                        {subSectionName && (
+                          <span className="thinking-subsection">{subSectionName}</span>
+                        )}
                         <span className={`thinking-kind pill kind-${entry.kind}`}>{entry.kind}</span>
                       </div>
                       <div className="thinking-item-actions">
@@ -166,6 +187,14 @@ const ShowReasoning = ({
                           </>
                         ) : (
                           <>
+                            <button
+                              className="tiny-button audit-trace-button"
+                              onClick={() =>
+                                onAuditTrace && onAuditTrace(entry, section, subSectionName || baseTitle)
+                              }
+                            >
+                              Audit Trace
+                            </button>
                             <button className="tiny-button" onClick={() => beginEdit(entry, section)}>Edit</button>
                             <button className="tiny-button" onClick={() => rerunThinking(entry, section)}>Re-run</button>
                           </>

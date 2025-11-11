@@ -23,6 +23,72 @@ const formatTraceTime = (date) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
+const generateSimplifiedTraceReport = (trace) => {
+  const sections = [];
+  const timestamp = trace.createdAt || trace.autosavedAt || new Date().toISOString();
+
+  const headingLine = `${trace.label || 'Trace'} — Generated ${timestamp}`;
+  const separator = '='.repeat(Math.max(headingLine.length, 60));
+
+  sections.push(separator, headingLine, separator, '');
+
+  const steps = trace.steps || [];
+
+  const sourceSteps = steps.filter((step) =>
+    ['external', 'internal'].includes(step.type)
+  );
+  if (sourceSteps.length > 0) {
+    sections.push('Sources Invoked');
+    sourceSteps.forEach((step) => {
+      sections.push(
+        `- ${step.label || 'Source'} (${step.type || 'source'})` +
+          (step.timestamp ? ` @ ${step.timestamp}` : '')
+      );
+    });
+    sections.push('');
+  }
+
+  if (steps.length > 0) {
+    sections.push('Steps Taken');
+    steps.forEach((step, index) => {
+      const line = `${index + 1}. ${step.label || 'Step'} (${step.type || 'unknown'})` +
+        (step.timestamp ? ` @ ${step.timestamp}` : '');
+      sections.push(line);
+    });
+    sections.push('');
+  }
+
+  const responseStep =
+    steps.find((step) => step.type === 'response' || step.type === 'response-generation') ||
+    steps.find((step) => step.type === 'synthesis');
+
+  if (responseStep) {
+    sections.push('Response Generated');
+    if (responseStep.description) {
+      sections.push(responseStep.description, '');
+    } else if (responseStep.output) {
+      sections.push(responseStep.output, '');
+    } else {
+      sections.push('No response details captured.', '');
+    }
+  }
+
+  const caveatSteps = steps.filter((step) =>
+    ['tool', 'agent', 'rag'].includes(step.type)
+  );
+  if (caveatSteps.length > 0) {
+    sections.push('Caveats / Alerts');
+    caveatSteps.forEach((step) => {
+      const line = `- ${step.label || step.type} ${(step.timestamp ? `(${step.timestamp})` : '')}`;
+      sections.push(line);
+    });
+    sections.push('');
+  }
+
+  sections.push(separator);
+  return sections.join('\n');
+};
+
 const openDraftsDB = () =>
   new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -115,7 +181,75 @@ const writeDraftsToDB = async (drafts) => {
   });
 };
 
-function DecisionTrace({ showChatbot, renderChatbot }) {
+const buildInitialFlowFromEntry = (entry) => {
+  if (!entry) {
+    return { steps: [], links: [] };
+  }
+
+  const baseTimestamp = formatTraceTime(new Date());
+  const steps = [];
+  const links = [];
+  const baseY = 220;
+  const baseX = 220;
+  const xSpacing = 220;
+
+  const createStep = (type, label, description, index) => {
+    const id = `step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    steps.push({
+      id,
+      type,
+      label,
+      description,
+      timestamp: baseTimestamp,
+      owner: 'Audit Flow',
+      position: {
+        x: baseX + index * xSpacing,
+        y: baseY
+      }
+    });
+    return id;
+  };
+
+  let index = 0;
+  const promptText = entry.prompt || entry.context || '';
+  if (promptText) {
+    createStep('llm', `${entry.title || 'Analysis'} Prompt`, promptText, index++);
+  }
+
+  if (entry.kind === 'bullets' && Array.isArray(entry.bullets) && entry.bullets.length) {
+    createStep('rag', 'Context Snapshot', entry.bullets.join('\n'), index++);
+  }
+
+  if (entry.kind === 'tool' && entry.tool) {
+    const toolDescription = entry.tool.inputs
+      ? JSON.stringify(entry.tool.inputs, null, 2)
+      : entry.tool.description || '';
+    createStep('tooling', entry.tool.name || 'Tool Invocation', toolDescription, index++);
+  }
+
+  if (entry.kind === 'agent') {
+    createStep('agent', 'Agent Handoff', entry.output || 'Agent coordination step', index++);
+  }
+
+  if (entry.kind === 'rag' && entry.output) {
+    createStep('rag', 'Retrieved Context', entry.output, index++);
+  }
+
+  const responseDescription = entry.output || entry.summary || 'No output captured.';
+  createStep('response', 'Result Summary', responseDescription, index++);
+
+  for (let i = 0; i < steps.length - 1; i += 1) {
+    links.push({
+      id: `link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      from: steps[i].id,
+      to: steps[i + 1].id
+    });
+  }
+
+  return { steps, links };
+};
+
+function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditTraceConsumed }) {
   const stepCategories = [
     {
       id: 'external',
@@ -184,10 +318,40 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
   const nodeObserversRef = useRef(new Map());
   const nodeRefCallbacksRef = useRef(new Map());
   const draftsLoadedRef = useRef(false);
+  const lastAuditRequestIdRef = useRef(null);
+  const hasPersistedSessionRef = useRef(false);
+  useEffect(() => {
+    if (!auditTraceRequest || auditTraceRequest.id === lastAuditRequestIdRef.current) {
+      return;
+    }
+
+    spawnNewTrace({
+      sectionLabel: auditTraceRequest.section,
+      label: auditTraceRequest.label,
+      entry: auditTraceRequest.entry
+    });
+    lastAuditRequestIdRef.current = auditTraceRequest.id;
+    if (onAuditTraceConsumed) {
+      onAuditTraceConsumed();
+    }
+  }, [auditTraceRequest, onAuditTraceConsumed]);
+
 
   const activeTrace = useMemo(() => traces.find((trace) => trace.id === activeTraceId) || null, [traces, activeTraceId]);
 
   const decisionTraceTimeline = useMemo(() => activeTrace?.steps || [], [activeTrace]);
+
+  const sortedOpenTraces = useMemo(() => {
+    return traces
+      .map((trace) => ({
+        id: trace.id,
+        label:
+          trace.label && trace.label.length > 18
+            ? `${trace.label.slice(0, 15)}…`
+            : trace.label || 'Untitled'
+      }))
+      .slice(0, 12);
+  }, [traces]);
 
   const stepCategoryMap = useMemo(() => {
     return stepCategories.reduce((acc, category) => {
@@ -270,6 +434,9 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
       }
 
       if (!tracesToPersist.length) {
+        if (!hasPersistedSessionRef.current) {
+          return;
+        }
         await writeDraftsToDB([]);
         return;
       }
@@ -308,6 +475,7 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
 
       try {
         await writeDraftsToDB([...draftsOnly, ...permanentEntries]);
+        hasPersistedSessionRef.current = true;
       } catch (error) {
         console.error('Failed to save decision trace drafts', error);
       }
@@ -363,23 +531,35 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
     };
   }, []);
 
-  const spawnNewTrace = () => {
+  const spawnNewTrace = ({ sectionLabel, label, entry } = {}) => {
     const now = new Date();
     const baseName = formatTraceName(now);
+    const timestampSuffix = baseName.replace(/^Trace-/, '');
+    const cleanedLabel =
+      label && typeof label === 'string' && label.trim().length
+        ? label.trim().replace(/\s+/g, '')
+        : sectionLabel && sectionLabel.trim().length
+        ? sectionLabel.trim().replace(/\s+/g, '')
+        : '';
+    const traceLabel = cleanedLabel
+      ? `${cleanedLabel}.${timestampSuffix}`
+      : `${baseName}_draft`;
+
+    const initialFlow = buildInitialFlowFromEntry(entry);
+
     const newTrace = {
       ...createTraceShell(now),
-      label: `${baseName}_draft`,
+      label: traceLabel,
       isDraft: true,
-      baseTraceId: null
+      baseTraceId: null,
+      steps: initialFlow.steps,
+      links: initialFlow.links
     };
-    setTraces((prev) => [newTrace, ...prev]);
+    const nextTraces = [newTrace, ...traces];
+    setTraces(nextTraces);
     setActiveTraceId(newTrace.id);
     setIsTraceExplorerOpen(true);
-    draftsLoadedRef.current = true;
-    const tracesToPersist = [newTrace, ...traces].filter(
-      (trace) => trace && ((trace.steps || []).length > 0 || trace.isDraft)
-    );
-    saveDraftsToIndexedDB(tracesToPersist).catch((error) =>
+    saveDraftsToIndexedDB(nextTraces).catch((error) =>
       console.error('Failed to save new draft trace', error)
     );
     return newTrace;
@@ -445,8 +625,6 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
         setActiveTraceId((prev) => (prev === trace.id ? updatedTraceSnapshot.id : prev));
       }
 
-      draftsLoadedRef.current = true;
-
       const persistable = updatedArraySnapshot.filter(
         (item) => (item.steps || []).length > 0 || item.isDraft
       );
@@ -470,9 +648,25 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
     setTraceContextMenu(null);
   };
 
-  const handleDeleteTrace = (traceId) => {
+  const confirmAndDeleteTrace = (traceId) => {
     const traceToDelete = traces.find((trace) => trace.id === traceId);
-    setTraces((prev) => prev.filter((trace) => trace.id !== traceId));
+
+    const message = traceToDelete
+      ? `The trace "${traceToDelete.label || 'Unnamed Trace'}" will be deleted. Are you sure?`
+      : 'The trace will be deleted. Are you sure?';
+
+    const confirmed = window.confirm(message);
+    if (!confirmed) {
+      return;
+    }
+
+    setTraces((prev) => {
+      const updated = prev.filter((trace) => trace.id !== traceId);
+      saveDraftsToIndexedDB(updated).catch((error) =>
+        console.error('Failed to persist traces after deletion', error)
+      );
+      return updated;
+    });
     if (activeTraceId === traceId) {
       setActiveTraceId(null);
       setSelectedStepId(null);
@@ -503,15 +697,26 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
     setTraceContextMenu(null);
   };
 
-  const handleExportTrace = (traceId) => {
+  const handleExportTrace = (traceId, mode = 'detailed') => {
     const trace = traces.find((t) => t.id === traceId);
     if (!trace) return;
-    const data = JSON.stringify(trace, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
+
+    const exportPayload =
+      mode === 'simplified'
+        ? generateSimplifiedTraceReport(trace)
+        : JSON.stringify(trace, null, 2);
+
+    const fileName =
+      mode === 'simplified'
+        ? `${trace.label || 'trace'}-simplified.txt`
+        : `${trace.label || 'trace'}.json`;
+
+    const mimeType = mode === 'simplified' ? 'text/plain;charset=utf-8' : 'application/json';
+    const blob = new Blob([exportPayload], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${trace.label || 'trace'}.json`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -710,6 +915,58 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
     setSelectedStepId(null);
   }, [activeTraceId]);
 
+  const renderedContextMenu = useMemo(() => {
+    if (!traceContextMenu) {
+      return null;
+    }
+
+    return ReactDOM.createPortal(
+      <div
+        className={`trace-context-menu ${traceContextMenu.mode === 'export' ? 'export-menu' : ''}`}
+        style={{ left: `${traceContextMenu.x}px`, top: `${traceContextMenu.y}px` }}
+      >
+        {traceContextMenu.mode === 'export' ? (
+          <>
+            <button
+              className="trace-context-item"
+              onClick={() => handleExportTrace(traceContextMenu.id, 'simplified')}
+            >
+              Simplified
+            </button>
+            <button
+              className="trace-context-item"
+              onClick={() => handleExportTrace(traceContextMenu.id, 'detailed')}
+            >
+              Detailed
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="trace-context-item"
+              onClick={() => confirmAndDeleteTrace(traceContextMenu.id)}
+            >
+              Delete
+            </button>
+            <button
+              className="trace-context-item"
+              onClick={() => handleRenameTrace(traceContextMenu.id)}
+            >
+              Rename
+            </button>
+            <button
+              className="trace-context-item"
+              onClick={() => handleExportTrace(traceContextMenu.id)}
+            >
+              Export
+            </button>
+          </>
+        )}
+      </div>,
+      document.body
+    );
+  }, [traceContextMenu, confirmAndDeleteTrace, handleRenameTrace, handleExportTrace]);
+
   useEffect(() => {
     if (
       typeof window === 'undefined' ||
@@ -723,13 +980,21 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
 
     const persistDrafts = async () => {
       try {
-        const tracesToPersist = traces.filter(
-          (trace) => (trace.steps || []).length > 0 || trace.isDraft
-        );
         if (cancelled) {
           return;
         }
-        await saveDraftsToIndexedDB(tracesToPersist);
+
+        if (!traces.length) {
+          if (!hasPersistedSessionRef.current) {
+            return;
+          }
+          await writeDraftsToDB([]);
+          hasPersistedSessionRef.current = false;
+          return;
+        }
+
+        await saveDraftsToIndexedDB(traces);
+        hasPersistedSessionRef.current = true;
       } catch (error) {
         console.error('Failed to persist decision trace drafts', error);
       }
@@ -950,7 +1215,7 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
     }
 
     const defaultName =
-      activeTrace.label && activeTrace.label.toLowerCase().endsWith('_draft')
+      activeTrace.label && (activeTrace.isDraft || activeTrace.id?.startsWith('draft-'))
         ? activeTrace.label.replace(/_draft$/i, '')
         : activeTrace.label || formatTraceName(new Date());
 
@@ -1017,7 +1282,18 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
           <div className="trace-actions">
             <button type="button" className="trace-action-btn primary" onClick={handleNewTrace}>New</button>
           <button type="button" className="trace-action-btn" onClick={handleSaveTrace}>Save</button>
-            <button type="button" className="trace-action-btn danger">Delete</button>
+            <button
+              type="button"
+              className="trace-action-btn danger"
+              onClick={() => {
+                if (!activeTraceId) {
+                  return;
+                }
+                confirmAndDeleteTrace(activeTraceId);
+              }}
+            >
+              Delete
+            </button>
           </div>
             <div className="trace-accordion">
             <div className={`trace-accordion-section ${isTraceExplorerOpen ? 'open' : ''}`}>
@@ -1046,7 +1322,15 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
                 <div className="trace-accordion-body">
                   {traces.length > 0 ? (
                     <div className="trace-explorer-list">
-                      {traces.map((trace) => (
+                      {traces.map((trace, index) => {
+                        const tagValue =
+                          index === 0 && trace.type === 'new'
+                            ? 'new'
+                            : trace.isDraft
+                              ? 'draft'
+                              : trace.type;
+
+                        return (
                         <button
                           key={trace.id}
                           className={`trace-explorer-item ${trace.id === activeTraceId ? 'active' : ''}`}
@@ -1062,12 +1346,13 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
                         >
                           <div className="trace-explorer-meta">
                             <span className="trace-explorer-time">{trace.timestamp}</span>
-                            <span className={`trace-explorer-tag trace-explorer-tag-${trace.type}`}>{trace.type}</span>
+                            <span className={`trace-explorer-tag trace-explorer-tag-${tagValue}`}>{tagValue}</span>
                           </div>
                           <div className="trace-explorer-title">{trace.label}</div>
                           {trace.owner && <div className="trace-explorer-owner">Owned by {trace.owner}</div>}
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="trace-menu-empty">No trace steps recorded</div>
@@ -1125,19 +1410,56 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
             </div>
           </div>
         </div>
-        <div
-          ref={canvasRef}
-          className={`decision-trace-canvas ${isCanvasDragActive ? 'drag-active' : ''}`}
-          onDragEnter={handleCanvasDragEnter}
-          onDragOver={handleCanvasDragOver}
-          onDragLeave={handleCanvasDragLeave}
-          onDrop={handleCanvasDrop}
-          onClick={(event) => {
-            if (event.target === event.currentTarget) {
-              setSelectedStepId(null);
-            }
-          }}
-        >
+        <div className="decision-trace-canvas-wrapper">
+          <div className="trace-tab-strip">
+            {sortedOpenTraces.length === 0 ? (
+              <div className="trace-tab empty">No open traces</div>
+            ) : (
+              sortedOpenTraces.map((traceTab) => (
+                <button
+                  key={traceTab.id}
+                  className={`trace-tab ${traceTab.id === activeTraceId ? 'active' : ''}`}
+                  onClick={() => handleSelectTrace(traceTab.id)}
+                >
+                  {traceTab.label}
+                </button>
+              ))
+            )}
+          </div>
+          <div
+            ref={canvasRef}
+            className={`decision-trace-canvas ${isCanvasDragActive ? 'drag-active' : ''}`}
+            onDragEnter={handleCanvasDragEnter}
+            onDragOver={handleCanvasDragOver}
+            onDragLeave={handleCanvasDragLeave}
+            onDrop={handleCanvasDrop}
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setSelectedStepId(null);
+              }
+            }}
+          >
+          {activeTrace && (
+            <div className="trace-canvas-toolbar">
+              <button
+                type="button"
+                className="trace-export-trigger"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const buttonRect = event.currentTarget.getBoundingClientRect();
+                  setTraceContextMenu({
+                    id: activeTraceId,
+                    x: buttonRect.right - 160,
+                    y: buttonRect.bottom + 8,
+                    mode: 'export'
+                  });
+                }}
+              >
+                Export Trace
+              </button>
+            </div>
+          )}
           {activeTrace && (
             <div className={`trace-overlay ${decisionTraceTimeline.length > 0 ? 'with-content' : ''}`}>
               <div className="trace-overlay-tab">{activeTrace.label}</div>
@@ -1272,17 +1594,9 @@ function DecisionTrace({ showChatbot, renderChatbot }) {
           </div>
         </div>
       </div>
+    </div>
       {renderChatbot && renderChatbot()}
-      {traceContextMenu && ReactDOM.createPortal(
-        <div className="trace-context-menu"
-          style={{ left: `${traceContextMenu.x}px`, top: `${traceContextMenu.y}px` }}
-        >
-          <button className="trace-context-item" onClick={() => handleDeleteTrace(traceContextMenu.id)}>Delete</button>
-          <button className="trace-context-item" onClick={() => handleRenameTrace(traceContextMenu.id)}>Rename</button>
-          <button className="trace-context-item" onClick={() => handleExportTrace(traceContextMenu.id)}>Export</button>
-        </div>,
-        document.body
-      )}
+      {renderedContextMenu}
     </div>
   );
 }

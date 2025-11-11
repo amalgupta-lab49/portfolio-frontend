@@ -95,6 +95,7 @@ function Dashboard() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [agentActiveTab, setAgentActiveTab] = useState('thesis');
+  const [auditTraceRequest, setAuditTraceRequest] = useState(null);
   const [thesisData, setThesisData] = useState({
     inceptionDate: new Date('2023-01-15'), // Example inception date
     sectors: [
@@ -2323,12 +2324,57 @@ function Dashboard() {
     setCopyNotification({ x, y });
   }, []);
 
+  const abbreviateLabel = useCallback((label) => {
+    if (!label) return 'Trace';
+
+    const cleaned = label
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (cleaned.length <= 15) {
+      return cleaned.replace(/\s+/g, '');
+    }
+
+    const initials = cleaned
+      .split(' ')
+      .filter(Boolean)
+      .map((word) => word[0].toUpperCase())
+      .join('');
+
+    return initials || 'Trace';
+  }, []);
+
+  const handleAuditTrace = useCallback(
+    (entry, section, labelHint = '') => {
+      const fallbackLabel = labelHint || entry?.title || section || 'Trace';
+      const sanitizedLabel = abbreviateLabel(fallbackLabel);
+
+      setAgentActiveTab('decision');
+      setShowThinkingPopover(null);
+      setAuditTraceRequest({
+        id: Date.now(),
+        section,
+        label: sanitizedLabel,
+        entry,
+        entrySummary: {
+          id: entry?.id,
+          title: entry?.title,
+          time: entry?.time,
+          kind: entry?.kind
+        }
+      });
+    },
+    [abbreviateLabel]
+  );
+
   const showReasoningCommonProps = useMemo(() => ({
     currentSection: showThinkingPopover,
     onOpen: handleShowReasoning,
     onClose: handleCloseReasoning,
     onCopyNotification: handleCopyNotification,
     onAskAgent: handleAskAgentFromReasoning,
+    onAuditTrace: handleAuditTrace,
     editingThoughtId,
     editPrompt,
     setEditPrompt,
@@ -2346,6 +2392,7 @@ function Dashboard() {
     handleCloseReasoning,
     handleCopyNotification,
     handleAskAgentFromReasoning,
+    handleAuditTrace,
     editingThoughtId,
     editPrompt,
     editToolInputs,
@@ -3416,7 +3463,12 @@ function Dashboard() {
             )}
 
             {agentActiveTab === 'decision' && (
-              <DecisionTrace showChatbot={showChatbot} renderChatbot={renderChatbot} />
+              <DecisionTrace
+                showChatbot={showChatbot}
+                renderChatbot={renderChatbot}
+                auditTraceRequest={auditTraceRequest}
+                onAuditTraceConsumed={() => setAuditTraceRequest(null)}
+              />
             )}
           </>
         ) : (
