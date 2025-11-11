@@ -1,0 +1,104 @@
+1. Summary: 1. Primary Request and Intent: The user initially requested to add a new tab "Decision Trace" next to "Bias Sentinel" with the following features: - A PM's Workspace-like setup to view data lineage with a trace logger. - Display data as a graph, with each step shown with a shape and proper label. - Remove the "Show-Reasoning" bubble from the Decision Trace tab. - Give the canvas a dotted look. - Add a collapsible workspace explorer to the left. - The workspace explorer should be a vertically collapsible menu covering seven step types: External Sources, Internal Sources, Tooling call, AI Agent Call, LLM Interaction, RAG (Context Enhancement), and Response Generation. - The Trace Explorer section should be above the Trace Type Steps section, both in an accordion. - Add three static buttons above the Trace Explorer: "New Trace", "Save Trace", and "Delete Trace". These buttons should be of standard size. - On click of the "New" button, a new file named "Trace-yymmdd.hhmmss.sss" should be created under "Trace Explorer", and a new transparent window should open with the file name tab on top of the dotted canvas. - The workspace window should be transparent, with its right edge extending to the right end of the screen and its bottom edge extending to the bottom of the screen. - The user should be able to right-click (3 options: delete, rename, export) the filename in the Trace Explorer. On click of delete, the file name should be deleted from the file explorer, and the new opened canvas should disappear. - Refactor the "Show Reasoning" functionality into a separate component. - In the Risk Alerts Section, the "Review" and "Optimize" buttons should be red, and the buttons of the "Show Reasoning" section, when clicked from the bubble in the Risk Alerts section, should be the same shade as other colors (purple). - The "Show Reasoning" dialog, when opened from the "Thesis at Inception" accordion, should not be hidden within the accordion but should appear over it and be opaque. - The user wants to be able to drag an individual step category box from the sidebar to the canvas. - If no active canvas is open, it should open a new one and paste the dragged item in the center. - The inner section of the "Show Reasoning" dialog should be opaque, while the outer section remains transparent. - The "Drag to Canvas" text should be removed from each explorer step. - The items on the canvas should be draggable and movable. - The display icon on the canvas should use the SVG in the step instead of a square. - The step name should be displayed below the icon in a smaller font. - Reduce the size of the icon on the canvas when posted. - Change the background of the canvas icon to a different pastel transparent color instead of black. - Reduce the size of the square step on the canvas. - On a single click of an element on the canvas, it should highlight. - If an element is clicked and dragged onto another element, the two should be joined by a one-way arrow. - On double-clicking an arrow, it should be deleted. - For the arrow, the source and destination should be the borders of the elements. - The arrow should adapt its radius based on the actual node size. - On double-click of a component on the canvas, it should be deleted. - If there is an in-process diagram on the canvas, the state should be autosaved, with the file name shown in the explorer as *_draft upon return to the Decision Trace tab. - A maximum of 3 such drafts can be saved. - Implement tab switching above the canvas. All active files in the explorer should be shown in tabs, and each tab name should be small. - If a draft file has been renamed, it should be saved permanently with that name. - If the "Save" button is clicked, it should ask to rename the file and then save it with the new name. - The WIP draft should not be deleted when switching tabs on the same localhost:3000. - The draft should be saved as soon as a new draft is created. - On opening the trace, all saved traces should be displayed and not vanish from the workspace. - The "New" tag in the list of traces should only be kept on the latest opened trace, not on all traces in the explorer. - When opening a new canvas from the "Audit Trace" button, the trace file name should be the Section Name (without spaces) + yymmdd.hhmmss.sss. - If the file name is greater than 15 characters, it should take the abbreviation (first letter of all words in the title). - On the rightmost top corner of the canvas, add a button that says "Export Trace". - On click, a context menu should open with two options: "Simplified" and "Detailed". - The "Export Trace" button should be part of the canvas and aligned with the canvas title. - The "Export Trace" button should be clickable, and the context menu should open on click. - On click of the "Simplified" button, the trace should be downloaded in a human-readable format with sections: "Sources Invoked", "Steps taken", "Response Generated", and "Any caveats". - In the "Show Reasoning" sections, on the left of the "Edit" and "Re-Run" buttons, add a button "Audit Trace". - Highlight the "Audit Trace" button. - Revert the case of "Audit Trace" to normal Camel Case. - On click of the "Audit Trace" button, a new Trace element canvas should open in the Decision Trace section. - For Show Reasoning Sections with multiple sub-sections, the sub-section name should be present in the audit trace file name.
+2. The tooltips of the 2nd and 3rd row are getting cropped from the bottom
+3. On click of Optimize button in the Risk Alerts, I want to open a popup window with recommended optimization suggestions.
+4. implement
+5. The tooltips of the 2nd and 3rd row are getting cropped from the bottom
+6. Line 1088:55: 'transformOffset' is not defined no-undef Line 1091:61: 'transformOffset' is not defined no-undef Line 1099:52: 'transformOffset' is not defined no-undef Line 1101:71: 'transformOffset' is not defined no-undef
+7. The bottoms of the pop overs are still being hidden. Make sure that the popover is completely visible below, around the mouse pointer as need be.
+8. Make these two popovers centered on the screen, with a close button on them to close the popover
+9. Modify the execute button click popover. 1. It should be a horizontal rectangle popover. 2. The items of the checklist are displayed in a table with columns Ticker, Trade Type (Buy Sell), Sector, %of Holdings, Value, and Action. 3. Each cell the in the Action column should have button 'Execute Trade'
+10. Resize the Execute Popover to look like a popover window, with rows that look neat. It should not have scrollbars
+11. Improve the popover. The text is overflowing below. The popover window's breadth should be same as the section's breadth
+12. The workspace is still not transparent. I should be able to see the dotted canvas.
+13. Still can't see the dots.
+14. The user should be able to right click (3 options, delete, rename, export) the filename in the Trace Explorer. 1. On click of delete, the file name should be deleted from file explorer, and the new opened canvas should disappear
+15. Context menu not coming up
+16. Refactor the show reasoning as a separate component, so that whenever we change something, the change is only needed at one place.
+17. 1. In the Risk Alerts Section, when we click the show reasoning, the buttons are coming as red. Convert them to regular shade of purple used.
+18. 1. This has changed the button colours of the risk alerts section as well. 2. The Execute and Optimise button should be Red, while the buttons of the show-reasoning section when clicked from the bubble in the Risk Alerts section , should be same shade as other colours
+19. @Dashboard.js (2655-2675) Can you change the colour of buttons in this section to red?
+20. The shadow is not red, the purple of the button on hover, and default remains
+21. This is how it looks.
+22. On click of the show-reasoning button in the Thesis at inception accordion, the show reasoning dialog is getting hidden in the accordion and not coming over it
+23. The dialog is transparent, I need it to be opaque
+24. Entire dialog is still transparent
+25. Still can't see the dots.
+26. The inner section of dialog is opaque now. The outer section is still transparent
+27. On the Decision Trace Tab. 1. I should be able to drag an individual step category box to the canvas. 2. If no active canvas is open, it opens a new one, and then pastes it in the center.
+28. Not working
+29. Not starting up
+30. npm start
+31. Now the box is dragging, but the new canvas is not being created before that.
+32. The new trace window opens but disappears
+33. We don't need to add the steps below explorer in the dropdown. Only on the canvas.
+34. 1. Remove the text Drag to Canvas from each explorer steps 2. Make the items on the canvas, dragable so they they can be moved around.
+35. For the display icon on the canvas, use the svg in the step instead of the square. The step name should given below in a smaller font.
+36. Reduce the size of the icon on the canvas when posted. Change background to a different pastel transparent colour instead of black
+37. Reduce size of the square step on canvas.
+38. I want to add arrows. 1. On single click of an element of canvas, it should highlight. 2. If some element is clicked, and we drag it on to another element, the two should be joined by a 1 way arrow.
+39. Still not at the border. It is still inside the square
+40. Yes. Please do
+41. Uncaught runtime errors: × ERROR Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops. at getRootForUpdatedFiber (http://localhost:3000/static/js/bundle.js:14078:167) at enqueueConcurrentHookUpdate (http://localhost:3000/static/js/bundle.js:14064:12) at dispatchSetStateInternal (http://localhost:3000/static/js/bundle.js:16035:16) at dispatchSetState (http://localhost:3000/static/js/bundle.js:16008:5) at callback (http://localhost:3000/static/js/bundle.js:37965:9) at runWithFiberInDEV (http://localhost:3000/static/js/bundle.js:12876:68) at safelyDetachRef (http://localhost:3000/static/js/bundle.js:17991:29) at commitMutationEffectsOnFiber (http://localhost:3000/static/js/bundle.js:18538:74) at recursivelyTraverseMutationEffects (http://localhost:3000/static/js/bundle.js:18457:104) at commitMutationEffectsOnFiber (http://localhost:3000/static/js/bundle.js:18536:9)
+42. 1. On double click of a component on the canvas, it should be deleted. 2. If there is an in process diagram on the canvas, the state is autosaved, with file name being shown in the explorer as *_draft upon return to the decision trace tab. 3. Max 3 such drafts can be saved.
+43. ERROR Cannot access 'saveDraftsToStorage' before initialization ReferenceError: Cannot access 'saveDraftsToStorage' before initialization at DecisionTrace (http://localhost:3000/main.cf35c1bf48b42c429fbd.hot-update.js:188:7) at react-stack-bottom-frame (http://localhost:3000/static/js/bundle.js:24894:18) at renderWithHooks (http://localhost:3000/static/js/bundle.js:15104:20) at updateFunctionComponent (http://localhost:3000/static/js/bundle.js:16797:17) at beginWork (http://localhost:3000/static/js/bundle.js:17383:16) at runWithFiberInDEV (http://localhost:3000/static/js/bundle.js:12876:68) at performUnitOfWork (http://localhost:3000/static/js/bundle.js:19456:93) at workLoopSync (http://localhost:3000/static/js/bundle.js:19349:38) at renderRootSync (http://localhost:3000/static/js/bundle.js:19333:7) at performWorkOnRoot (http://localhost:3000/static/js/bundle.js:19097:42)
+44. Drafts are not being saved still. Use browser db for to store the data
+45. 1. If I have renamed a draft file. It should be saved permanently with that name. 2. If I click on save, the it should ask me to rename the file, and then let is save by the new name.
+46. 1. The WIP draft is being deleted even if switch tab on the same localhost:3000. 2. Make sure it is saved as soon as the new draft is created
+47. On double clicking the arrow, it should delete.
+48. For The Arrow, source and destination, should be the borders.
+49. src/components/DecisionTrace.js Line 343:23: 'newStep' is not defined no-undef
+50. Need to implement tab switching above canvas. 1. all active files in explorer to be shown in tabs. 2. Each tab name to be a small.
+51. Module build failed (from ./node_modules/babel-loader/lib/index.js): SyntaxError: /Users/amalgupta/Work/Workspaces/am-portfolio-mgmt-ui/portfolio-frontend/src/components/DecisionTrace.js: Unterminated JSX contents. (1331:10)
+52. npm start
+53. stop nmp
+54. npm start
+55. SyntaxError: /Users/amalgupta/Work/Workspaces/am-portfolio-mgmt-ui/portfolio-frontend/src/components/DecisionTrace.js: Unterminated JSX contents. (1332:10)
+56. still there is the same error nothing changed SyntaxError: /Users/amalgupta/Work/Workspaces/am-portfolio-mgmt-ui/portfolio-frontend/src/components/DecisionTrace.js: Unterminated JSX contents. (1338:10)
+57. GEt this error on the click of Decision Trace Tab Cannot access 'handleDeleteTrace' before initialization ReferenceError: Cannot access 'handleDeleteTrace' before initialization at DecisionTrace (http://localhost:3000/static/js/bundle.js:38117:25) at react-stack-bottom-frame (http://localhost:3000/static/js/bundle.js:24947:18) at renderWithHooks (http://localhost:3000/static/js/bundle.js:15157:20) at updateFunctionComponent (http://localhost:3000/static/js/bundle.js:16850:17) at beginWork (http://localhost:3000/static/js/bundle.js:17436:16) at runWithFiberInDEV (http://localhost:3000/static/js/bundle.js:12929:68) at performUnitOfWork (http://localhost:3000/static/js/bundle.js:19509:93) at workLoopSync (http://localhost:3000/static/js/bundle.js:19402:38) at renderRootSync (http://localhost:3000/static/js/bundle.js:19386:7) at performWorkOnRoot (http://localhost:3000/static/js/bundle.js:19150:42)
+58. 1. Embedded in the right most top corner of the canvas, I want a button that says, export trace. 2. On click, a context menu opens with two options, Simplified, Detailed
+59. The Export Trace Button should be the part of the canvas.
+60. It still isn't in the canvas. Align it in line with the canvas title.
+61. Now make that button clickable. 1. Add the context menu on click. With two items Simplified, Detailed.
+62. pointer events not workig
+63. On click of the simplified button, The trace downloaded in the format such that a non-technical guy can understand. in the template, Sources Invoked, Steps taken Response Generated and any caveats
+64. [eslint] src/components/DecisionTrace.js Line 524:11: 'generateSimplifiedTraceReport' is not defined no-undef
+65. In the Decision Trace Section, on the click of the delete button, a popup is shown, "The trace will be deleted. Are you sure?" and on click of the yes button, the selected trace is deleted. Add same confirmation popup on the click of the delete button of the context meny
+66. ERROR [eslint] src/components/DecisionTrace.js Line 841:30: 'handleDeleteTrace' is not defined no-undef Line 862:25: 'handleDeleteTrace' is not defined no-undef
+67. In the show reasoning sections. On the left of the Edit and Re-Run buttons, add a button "Audit Trace"
+68. Highlight the Audit Trace Button.
+69. Revert the case to normal Camel Case.
+70. On Click of Audit Trace Button, a new Trace element canvas opens in the Decision Trace section.
+71. On opening the trace, presently all the saved traces are not being displayed 1. The existing traces should not vanish from the workspace, and all the existing traces should be visible.
+72. On the list of Traces, New should only be kept on the latest opened trace. keeping on the all the traces in the explorer
+73. When opening a new canvas from the Audit Trace Tab 1. Keep the trace file name as the Section Name, without Spaces + yymmdd.hhmmss.sss
+74. For Show Reasoning Sections with multiple sub-sections, The sub-section name should be present.
+75. It's still taking the name of the parent. Detailed requirement vs what happened. 1. I clicked on the show reasoning in the Performance Metrics. 2. It had 4 sections YTD Return Calculation, Sharpe Ratio Analysis, Portfolio Beta Calculation, Tracking Error measurement, 3. I clicked on Audit Trace of Sharpe Ratio. 4. The file got saved with the name "performance*" whereas it should be with the name "SharpeRatio*"
+76. If the File Name is greater than 15 Chars, take the abbreviation. First Letter of all Words in the title
+77. The file name is correct. 1. On Switching tabs, the draft file is getting deleted again.
+78. still not being saved. Even on the click of the save button, it is still not being saved
+79. Drafts still vanishing
+80. I tested again.
+81. It is still fails.
+82. Works.
+83. Now, For the selected Audit Trace, identify the Audit flow using the Trace Type Steps given in the DecisionTrace, and show the diagram of the created flow. 
+84. The Trace Type Steps are
+85. Keep the trace fitted within the canvas.
+86. The trace is going outside the canvas and the window. On reaching the borders, the next trace step should come in neatly below.
+87. Click of the new trace does not make it empty. It is coming up with standard sequence of flows.
+88. Okay I want to create a static json file for reference of the Decision Trace flow.
+89. For every show-reasoning sub section, the decision flow would differ. 
+90. based on the list of sub-sections we have, There may be cases where there may be a circular call to tooling, and multiple inputs to a single step. Incorporate those as well in the json. 
+91. On click of audit Trace, use the generated json to indentify the type, of sub-section, then generate the diagram based on the sequence. 
+92. Okay. Do this. 
+93. Click of the new trace does not make it empty. It is coming up with standard sequence of flows.
+94. The Trace explorer's trace also gets overwritten, 
+95. Debug and analyse What happens when you click Audit Trace, and find how it impacts the DecisionTrace tab
+96. Give me the code flow, with line numbers.
+97. Compare the code from New Button Click, vs Audit Trace click. 
+98. Now fix it.
+99. The Delete is not happenning. 
+100. The click of audit Trace creates two trace files, on every click
+101. Can you download the list of prompts I have given, each a different point into a text file
+102. Do you have prompts earlier than this. Find any and generate the list from beginning.
+103. Do you have prompts earlier than this. Find any and generate the list from beginning. Edit file if needed.
+
