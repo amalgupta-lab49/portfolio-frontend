@@ -1,0 +1,123 @@
+{
+  "version": "1.1.0",
+  "updatedAt": "2025-11-11T10:15:00.000Z",
+  "description": "Canonical Decision Trace flow metadata and reference templates for common audit scenarios.",
+  "steps": [
+    {
+      "id": "external",
+      "label": "External Sources",
+      "summary": "Market intelligence, news feeds, regulatory filings, or any non-proprietary data leveraged during the audit.",
+      "color": "#38bdf8",
+      "icon": "globe"
+    },
+    {
+      "id": "internal",
+      "label": "Internal Sources",
+      "summary": "Proprietary research, portfolio documents, or internal knowledge bases referenced for the analysis.",
+      "color": "#0ea5e9",
+      "icon": "database"
+    },
+    {
+      "id": "tooling",
+      "label": "Tooling Call",
+      "summary": "Execution or analytics tools that were invoked (risk engines, optimizers, scenario generators, etc.).",
+      "color": "#f97316",
+      "icon": "wrench"
+    },
+    {
+      "id": "agent",
+      "label": "AI Agent Call",
+      "summary": "Autonomous agent participation or hand-offs between orchestrated AI agents.",
+      "color": "#a855f7",
+      "icon": "robot"
+    },
+    {
+      "id": "llm",
+      "label": "LLM Interaction",
+      "summary": "Large language model prompt/response exchange that provided reasoning or narrative steps.",
+      "color": "#6366f1",
+      "icon": "chat"
+    },
+    {
+      "id": "rag",
+      "label": "RAG (Context Enhancement)",
+      "summary": "Retrieval-augmented context generation, blending sources that informed the LLM.",
+      "color": "#14b8a6",
+      "icon": "layers"
+    },
+    {
+      "id": "response",
+      "label": "Response Generation",
+      "summary": "Final synthesized response, recommendation, or action emitted by the workflow.",
+      "color": "#4ade80",
+      "icon": "check-circle"
+    }
+  ],
+  "templates": [
+    {
+      "id": "summaryGeneration",
+      "label": "Summary Generation",
+      "description": "Used for narrative briefings such as Morning Portfolio Briefing and other summarization use cases.",
+      "sections": ["Morning Portfolio Briefing"],
+      "sequence": ["external", "internal", "rag", "llm", "response"],
+      "fanIn": [
+        {
+          "target": "response",
+          "sources": ["rag", "llm"]
+        }
+      ],
+      "loopPatterns": []
+    },
+    {
+      "id": "analytics",
+      "label": "Analytics",
+      "description": "Used for analytical dashboards like Risk Alerts, Today's Actions, and Performance Metrics.",
+      "sections": ["Risk Alerts", "Today's Actions", "Performance Metrics"],
+      "sequence": ["external", "internal", "tooling", "llm", "rag", "response"],
+      "loopPatterns": [
+        {
+          "description": "Iterative analytic refinement using tooling and LLM review.",
+          "cycle": ["tooling", "llm", "rag"],
+          "maxIterations": 3
+        }
+      ],
+      "fanIn": [
+        {
+          "target": "response",
+          "sources": ["tooling", "llm", "rag"]
+        }
+      ]
+    },
+    {
+      "id": "agenticAnalytics",
+      "label": "Agentic Analytics",
+      "description": "Applies to Thesis Decay sub-sections and Bias Sentinel analysis where agent collaboration is involved.",
+      "sections": ["Thesis Decay", "Bias Sentinel"],
+      "sequence": ["external", "internal", "agent", "tooling", "llm", "rag", "response"],
+      "loopPatterns": [
+        {
+          "description": "Agent delegates repeated tooling probes before final synthesis.",
+          "cycle": ["agent", "tooling", "llm"],
+          "maxIterations": 4
+        },
+        {
+          "description": "LLM self-correct loop with augmented context.",
+          "cycle": ["llm", "rag"],
+          "maxIterations": 2
+        }
+      ],
+      "fanIn": [
+        {
+          "target": "rag",
+          "sources": ["external", "internal", "agent"]
+        },
+        {
+          "target": "response",
+          "sources": ["tooling", "llm", "rag"]
+        }
+      ]
+    }
+  ],
+  "defaultSequence": ["external", "internal", "tooling", "agent", "llm", "rag", "response"]
+}
+

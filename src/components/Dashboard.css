@@ -4721,7 +4721,9 @@
   background-position: 0 0;
   border-radius: 12px;
   padding: 1.5rem;
-  min-height: calc(100vh - 220px);
+  height: calc(100vh - 220px);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .decision-trace-canvas .decision-trace {
@@ -4825,6 +4827,10 @@
   line-height: 1.1;
 }
 
+.trace-node-instance svg {
+  pointer-events: none;
+}
+
 .trace-canvas-toolbar {
   position: absolute;
   top: calc(1.5rem + 0.18rem);
@@ -4882,4 +4888,32 @@
   fill: none;
   filter: drop-shadow(0 3px 6px rgba(67, 56, 202, 0.25));
   cursor: pointer;
+}
+
+.trace-node.external .trace-node-shape {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+}
+
+.trace-node.internal .trace-node-shape {
+  background: linear-gradient(135deg, #22d3ee, #0f766e);
+}
+
+.trace-node.tooling .trace-node-shape {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+}
+
+.trace-node.agent .trace-node-shape {
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
+}
+
+.trace-node.llm .trace-node-shape {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+}
+
+.trace-node.rag .trace-node-shape {
+  background: linear-gradient(135deg, #14b8a6, #0f766e);
+}
+
+.trace-node.response .trace-node-shape {
+  background: linear-gradient(135deg, #4ade80, #16a34a);
 }

@@ -181,70 +181,336 @@ const writeDraftsToDB = async (drafts) => {
   });
 };
 
-const buildInitialFlowFromEntry = (entry) => {
-  if (!entry) {
-    return { steps: [], links: [] };
+const STEP_DESCRIBERS = {
+  external: (entry) => {
+    const sources = entry?.externalSources || entry?.sources?.external;
+    if (Array.isArray(sources) && sources.length) {
+      return `Referenced sources:\n- ${sources.join('\n- ')}`;
+    }
+    const prompt = entry?.prompt || entry?.context || '';
+    if (prompt && /news|market|external/i.test(prompt)) {
+      return 'External data referenced within the prompt.';
+    }
+    return 'No external sources captured for this trace.';
+  },
+  internal: (entry) => {
+    const sources = entry?.internalSources || entry?.sources?.internal;
+    if (Array.isArray(sources) && sources.length) {
+      return `Internal references:\n- ${sources.join('\n- ')}`;
+    }
+    const prompt = entry?.prompt || '';
+    if (prompt && /internal|research|proprietary/i.test(prompt)) {
+      return 'Internal knowledge bases referenced within the prompt.';
+    }
+    return 'No internal sources captured for this trace.';
+  },
+  tooling: (entry) => {
+    if (entry?.tool) {
+      const inputs = entry.tool.inputs ? JSON.stringify(entry.tool.inputs, null, 2) : 'No inputs recorded.';
+      return `${entry.tool.name || 'Tool Invocation'}\n${inputs}`;
+    }
+    if (entry?.kind === 'tool') {
+      return entry.output || 'Tool execution logged without specific metadata.';
+    }
+    return 'No tooling call recorded for this trace.';
+  },
+  agent: (entry) => {
+    if (entry?.kind === 'agent' || entry?.actor === 'AI Agent') {
+      return entry.output || 'AI Agent handled the hand-off for this step.';
+    }
+    return 'No AI agent collaboration captured for this trace.';
+  },
+  llm: (entry) => {
+    const prompt = entry?.prompt;
+    if (prompt) {
+      return prompt;
+    }
+    return 'No prompt captured for this trace.';
+  },
+  rag: (entry) => {
+    if (entry?.ragContext) {
+      return entry.ragContext;
+    }
+    if (entry?.kind === 'bullets' && Array.isArray(entry.bullets) && entry.bullets.length) {
+      return entry.bullets.join('\n');
+    }
+    if (entry?.context) {
+      return entry.context;
+    }
+    return 'No augmented context captured for this trace.';
+  },
+  response: (entry) => {
+    if (entry?.output) {
+      return entry.output;
+    }
+    if (entry?.summary) {
+      return entry.summary;
+    }
+    return 'No response generation output captured.';
+  }
+};
+
+const labelFromStepId = (stepId) =>
+  (stepId || '')
+    .replace(/[-_]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const normalizeKey = (value) =>
+  typeof value === 'string'
+    ? value
+        .replace(/\s+/g, '')
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toLowerCase()
+    : '';
+
+const normalizeFlowReference = (data) => {
+  const stepsArray = Array.isArray(data?.steps) ? data.steps : [];
+  const stepsById = stepsArray.reduce((acc, step) => {
+    if (!step?.id) {
+      return acc;
+    }
+    const describe = STEP_DESCRIBERS[step.id] || (() => step.summary || '');
+    acc[step.id] = {
+      id: step.id,
+      label: step.label || labelFromStepId(step.id),
+      color: step.color,
+      icon: step.icon,
+      describe
+    };
+    return acc;
+  }, {});
+
+  Object.keys(STEP_DESCRIBERS).forEach((stepId) => {
+    if (!stepsById[stepId]) {
+      stepsById[stepId] = {
+        id: stepId,
+        label: labelFromStepId(stepId),
+        describe: STEP_DESCRIBERS[stepId]
+      };
+    } else if (!stepsById[stepId].describe) {
+      stepsById[stepId].describe = STEP_DESCRIBERS[stepId];
+    }
+  });
+
+  const defaultSequence =
+    Array.isArray(data?.defaultSequence) && data.defaultSequence.length
+      ? data.defaultSequence.filter((stepId) => stepsById[stepId])
+      : Object.keys(stepsById);
+
+  const templatesArray = Array.isArray(data?.templates) ? data.templates : [];
+  const templates = templatesArray.map((template, index) => {
+    const id = template?.id || normalizeKey(template?.label) || `template-${index}`;
+    const sequence =
+      Array.isArray(template?.sequence) && template.sequence.length
+        ? template.sequence.filter((stepId) => stepsById[stepId])
+        : defaultSequence;
+    return {
+      id,
+      label: template?.label || labelFromStepId(id),
+      description: template?.description || '',
+      sections: Array.isArray(template?.sections) ? template.sections : [],
+      sequence,
+      fanIn: Array.isArray(template?.fanIn) ? template.fanIn : [],
+      loopPatterns: Array.isArray(template?.loopPatterns) ? template.loopPatterns : []
+    };
+  });
+
+  if (!templates.some((template) => template.id === 'default')) {
+    templates.push({
+      id: 'default',
+      label: 'Default',
+      description: 'Fallback decision trace sequence.',
+      sections: [],
+      sequence: defaultSequence,
+      fanIn: [],
+      loopPatterns: []
+    });
   }
 
-  const baseTimestamp = formatTraceTime(new Date());
+  const templatesById = templates.reduce((acc, template) => {
+    acc[template.id] = template;
+    return acc;
+  }, {});
+
+  return {
+    version: data?.version || 'fallback',
+    updatedAt: data?.updatedAt || new Date().toISOString(),
+    stepsById,
+    templates,
+    templatesById,
+    defaultTemplateId: 'default'
+  };
+};
+
+const FALLBACK_FLOW_REFERENCE = normalizeFlowReference({
+  steps: [
+    { id: 'external', label: 'External Sources' },
+    { id: 'internal', label: 'Internal Sources' },
+    { id: 'tooling', label: 'Tooling Call' },
+    { id: 'agent', label: 'AI Agent Call' },
+    { id: 'llm', label: 'LLM Interaction' },
+    { id: 'rag', label: 'RAG (Context Enhancement)' },
+    { id: 'response', label: 'Response Generation' }
+  ],
+  templates: [
+    {
+      id: 'summaryGeneration',
+      label: 'Summary Generation',
+      sections: ['Morning Portfolio Briefing'],
+      sequence: ['external', 'internal', 'rag', 'llm', 'response'],
+      fanIn: [{ target: 'response', sources: ['rag', 'llm'] }],
+      loopPatterns: []
+    },
+    {
+      id: 'analytics',
+      label: 'Analytics',
+      sections: ['Risk Alerts', "Today's Actions", 'Performance Metrics'],
+      sequence: ['external', 'internal', 'tooling', 'llm', 'rag', 'response'],
+      fanIn: [{ target: 'response', sources: ['tooling', 'llm', 'rag'] }],
+      loopPatterns: [
+        { description: 'Tooling ⇄ Analysis refinement loop', cycle: ['tooling', 'llm', 'rag'], maxIterations: 3 }
+      ]
+    },
+    {
+      id: 'agenticAnalytics',
+      label: 'Agentic Analytics',
+      sections: ['Thesis Decay', 'Bias Sentinel'],
+      sequence: ['external', 'internal', 'agent', 'tooling', 'llm', 'rag', 'response'],
+      fanIn: [
+        { target: 'rag', sources: ['external', 'internal', 'agent'] },
+        { target: 'response', sources: ['tooling', 'llm', 'rag'] }
+      ],
+      loopPatterns: [
+        { description: 'Agent delegates investigative tooling', cycle: ['agent', 'tooling', 'llm'], maxIterations: 4 },
+        { description: 'LLM ↔ Context refinement', cycle: ['llm', 'rag'], maxIterations: 2 }
+      ]
+    }
+  ],
+  defaultSequence: ['external', 'internal', 'tooling', 'agent', 'llm', 'rag', 'response']
+});
+
+const truncateDescription = (text) => {
+  if (!text) return '';
+  const maxLength = 900;
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
+};
+
+const buildFlowFromTemplate = (
+  entry,
+  {
+    canvasWidth,
+    sequence,
+    stepsById,
+    fanIn = [],
+    loopPatterns = []
+  }
+) => {
   const steps = [];
   const links = [];
-  const baseY = 220;
-  const baseX = 220;
-  const xSpacing = 220;
+  const baseTimestamp = formatTraceTime(new Date());
+  const fallbackWidth = 1024;
+  const effectiveCanvasWidth =
+    typeof canvasWidth === 'number' && canvasWidth > 320 ? canvasWidth : fallbackWidth;
+  const marginX = 160;
+  const marginY = 140;
+  const nodeWidth = 168;
+  const horizontalSpacing = 140;
+  const verticalSpacing = 200;
+  const stepSpanX = nodeWidth + horizontalSpacing;
+  const availableWidth = Math.max(effectiveCanvasWidth - marginX * 2, nodeWidth);
+  const maxPerRow = Math.max(1, Math.floor(availableWidth / stepSpanX));
+  const sanitizedSequence = Array.isArray(sequence) ? sequence.filter(Boolean) : [];
+  const itemsPerRow = Math.max(1, Math.min(sanitizedSequence.length || 1, maxPerRow));
 
-  const createStep = (type, label, description, index) => {
-    const id = `step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  let previousStepId = null;
+  let previousStepKey = null;
+  const nodeById = {};
+  const linkKeySet = new Set();
+
+  const createLinkRecord = (from, to) => ({
+    id: `link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    from,
+    to
+  });
+
+  sanitizedSequence.forEach((stepKey, index) => {
+    const definition = stepsById?.[stepKey] || {
+      id: stepKey,
+      label: labelFromStepId(stepKey),
+      describe: () => ''
+    };
+    const description = truncateDescription(definition.describe(entry));
+    const stepId = `step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const rowIndex = Math.floor(index / itemsPerRow);
+    const rowStart = rowIndex * itemsPerRow;
+    const columnsInRow = Math.min(itemsPerRow, sanitizedSequence.length - rowStart);
+    const columnInRow = index - rowStart;
+    const direction = rowIndex % 2 === 0 ? 1 : -1;
+    const adjustedColumn =
+      direction === 1 ? columnInRow : Math.max(0, columnsInRow - 1 - columnInRow);
+    const x = marginX + adjustedColumn * stepSpanX;
+    const y = marginY + rowIndex * verticalSpacing;
+
     steps.push({
-      id,
-      type,
-      label,
+      id: stepId,
+      type: stepKey,
+      label: definition.label,
       description,
       timestamp: baseTimestamp,
       owner: 'Audit Flow',
-      position: {
-        x: baseX + index * xSpacing,
-        y: baseY
-      }
+      position: { x, y }
     });
-    return id;
+    nodeById[stepKey] = { stepId };
+
+    if (previousStepId) {
+      links.push(createLinkRecord(previousStepId, stepId));
+      if (previousStepKey) {
+        linkKeySet.add(`${previousStepKey}→${stepKey}`);
+      }
+    }
+
+    previousStepId = stepId;
+    previousStepKey = stepKey;
+  });
+
+  const addLinkRecord = (fromKey, toKey) => {
+    const fromNode = nodeById[fromKey];
+    const toNode = nodeById[toKey];
+    if (!fromNode || !toNode) {
+      return;
+    }
+    const linkKey = `${fromKey}→${toKey}`;
+    if (linkKeySet.has(linkKey)) {
+      return;
+    }
+    linkKeySet.add(linkKey);
+    links.push(createLinkRecord(fromNode.stepId, toNode.stepId));
   };
 
-  let index = 0;
-  const promptText = entry.prompt || entry.context || '';
-  if (promptText) {
-    createStep('llm', `${entry.title || 'Analysis'} Prompt`, promptText, index++);
-  }
-
-  if (entry.kind === 'bullets' && Array.isArray(entry.bullets) && entry.bullets.length) {
-    createStep('rag', 'Context Snapshot', entry.bullets.join('\n'), index++);
-  }
-
-  if (entry.kind === 'tool' && entry.tool) {
-    const toolDescription = entry.tool.inputs
-      ? JSON.stringify(entry.tool.inputs, null, 2)
-      : entry.tool.description || '';
-    createStep('tooling', entry.tool.name || 'Tool Invocation', toolDescription, index++);
-  }
-
-  if (entry.kind === 'agent') {
-    createStep('agent', 'Agent Handoff', entry.output || 'Agent coordination step', index++);
-  }
-
-  if (entry.kind === 'rag' && entry.output) {
-    createStep('rag', 'Retrieved Context', entry.output, index++);
-  }
-
-  const responseDescription = entry.output || entry.summary || 'No output captured.';
-  createStep('response', 'Result Summary', responseDescription, index++);
-
-  for (let i = 0; i < steps.length - 1; i += 1) {
-    links.push({
-      id: `link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      from: steps[i].id,
-      to: steps[i + 1].id
+  fanIn.forEach((group) => {
+    if (!group || !group.target || !Array.isArray(group.sources)) {
+      return;
+    }
+    group.sources.forEach((sourceKey) => {
+      addLinkRecord(sourceKey, group.target);
     });
-  }
+  });
+
+  loopPatterns.forEach((loop) => {
+    if (!loop || !Array.isArray(loop.cycle) || loop.cycle.length < 2) {
+      return;
+    }
+    const cycle = loop.cycle.filter((stepKey) => nodeById[stepKey]);
+    if (cycle.length < 2) {
+      return;
+    }
+    for (let index = 0; index < cycle.length - 1; index += 1) {
+      addLinkRecord(cycle[index], cycle[index + 1]);
+    }
+    addLinkRecord(cycle[cycle.length - 1], cycle[0]);
+  });
 
   return { steps, links };
 };
@@ -311,6 +577,8 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
   const [draggingCategoryId, setDraggingCategoryId] = useState(null);
   const [isCanvasDragActive, setIsCanvasDragActive] = useState(false);
   const [draggingStepId, setDraggingStepId] = useState(null);
+  const [flowReference, setFlowReference] = useState(FALLBACK_FLOW_REFERENCE);
+  const [areDraftsLoaded, setAreDraftsLoaded] = useState(false);
 
   const canvasRef = useRef(null);
   const pendingCenteredTraceRef = useRef(null);
@@ -320,22 +588,114 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
   const draftsLoadedRef = useRef(false);
   const lastAuditRequestIdRef = useRef(null);
   const hasPersistedSessionRef = useRef(false);
+  const flowReferenceRef = useRef(FALLBACK_FLOW_REFERENCE);
+  const tracesRef = useRef([]);
+  const pendingAuditRequestRef = useRef(null);
+
   useEffect(() => {
-    if (!auditTraceRequest || auditTraceRequest.id === lastAuditRequestIdRef.current) {
-      return;
-    }
+    tracesRef.current = traces;
+  }, [traces]);
 
-    spawnNewTrace({
-      sectionLabel: auditTraceRequest.section,
-      label: auditTraceRequest.label,
-      entry: auditTraceRequest.entry
-    });
-    lastAuditRequestIdRef.current = auditTraceRequest.id;
-    if (onAuditTraceConsumed) {
-      onAuditTraceConsumed();
-    }
-  }, [auditTraceRequest, onAuditTraceConsumed]);
+  useEffect(() => {
+    let isCancelled = false;
 
+    const loadFlowReference = async () => {
+      try {
+        const response = await fetch('/decision-trace-flow.json', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Unexpected status ${response.status}`);
+        }
+        const json = await response.json();
+        const normalized = normalizeFlowReference(json);
+        if (!isCancelled) {
+          flowReferenceRef.current = normalized;
+          setFlowReference(normalized);
+        }
+      } catch (error) {
+        console.warn('Failed to load decision trace flow reference. Using fallback.', error);
+      }
+    };
+
+    loadFlowReference();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const stepsById = flowReference?.stepsById || FALLBACK_FLOW_REFERENCE.stepsById;
+  const templatesById = flowReference?.templatesById || FALLBACK_FLOW_REFERENCE.templatesById;
+  const defaultTemplate =
+    templatesById?.[flowReference?.defaultTemplateId] ||
+    templatesById?.default ||
+    FALLBACK_FLOW_REFERENCE.templatesById.default;
+
+  const resolveTemplateForEntry = useCallback(
+    ({ sectionLabel, entry }) => {
+      const reference = flowReferenceRef.current || flowReference || FALLBACK_FLOW_REFERENCE;
+      const templates = reference.templates || [];
+      const referenceTemplatesById = reference.templatesById || {};
+      const normalizedSection = normalizeKey(sectionLabel);
+      const entryTitle = entry?.title || entry?.label || '';
+      const normalizedTitle = normalizeKey(entryTitle);
+      const normalizedKind = normalizeKey(entry?.kind);
+
+      const matchBySection = templates.find(
+        (template) =>
+          Array.isArray(template.sections) &&
+          template.sections.some((section) => normalizeKey(section) === normalizedSection)
+      );
+      if (matchBySection) {
+        return matchBySection;
+      }
+
+      if (normalizedTitle) {
+        const matchByTitle = templates.find(
+          (template) =>
+            Array.isArray(template.sections) &&
+            template.sections.some((section) => normalizeKey(section) === normalizedTitle)
+        );
+        if (matchByTitle) {
+          return matchByTitle;
+        }
+      }
+
+      if (normalizedKind === 'agent' && referenceTemplatesById.agenticAnalytics) {
+        return referenceTemplatesById.agenticAnalytics;
+      }
+
+      if (
+        normalizedKind === 'tool' ||
+        normalizedSection.includes('riskalerts') ||
+        normalizedSection.includes('todaysactions') ||
+        normalizedSection.includes('performancemetrics') ||
+        normalizedTitle.includes('riskalerts') ||
+        normalizedTitle.includes('performancemetrics')
+      ) {
+        if (referenceTemplatesById.analytics) {
+          return referenceTemplatesById.analytics;
+        }
+      }
+
+      if (
+        referenceTemplatesById.summaryGeneration &&
+        (normalizedSection.includes('briefing') ||
+          normalizedTitle.includes('briefing') ||
+          normalizedKind === 'text' ||
+          normalizedKind === 'bullets')
+      ) {
+        return referenceTemplatesById.summaryGeneration;
+      }
+
+      return (
+        referenceTemplatesById[reference.defaultTemplateId] ||
+        referenceTemplatesById.default ||
+        reference.templates[0] ||
+        FALLBACK_FLOW_REFERENCE.templates[0]
+      );
+    },
+    [flowReference]
+  );
 
   const activeTrace = useMemo(() => traces.find((trace) => trace.id === activeTraceId) || null, [traces, activeTraceId]);
 
@@ -413,19 +773,23 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
     return callback;
   }, []);
 
-  const createTraceShell = (date = new Date()) => ({
-     id: `trace-${date.getTime()}`,
-     label: formatTraceName(date),
-     createdAt: date,
-     timestamp: formatTraceTime(date),
-     type: 'new',
-     owner: 'You',
-     steps: [],
+const createTraceShell = (date = new Date()) => {
+  const randomSuffix = Math.random().toString(36).slice(2, 10);
+  const timestamp = date.getTime();
+  return {
+    id: `trace-${timestamp}-${randomSuffix}`,
+    label: formatTraceName(date),
+    createdAt: date,
+    timestamp: formatTraceTime(date),
+    type: 'new',
+    owner: 'You',
+    steps: [],
     links: [],
     isDraft: false,
     baseTraceId: null,
     autosavedAt: null
-  });
+  };
+};
 
   const saveDraftsToIndexedDB = useCallback(
     async (tracesToPersist) => {
@@ -486,6 +850,7 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
   useEffect(() => {
     if (typeof window === 'undefined' || typeof indexedDB === 'undefined') {
       draftsLoadedRef.current = true;
+      setAreDraftsLoaded(true);
       return;
     }
 
@@ -521,6 +886,7 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
         console.error('Failed to load decision trace drafts', error);
       } finally {
         draftsLoadedRef.current = true;
+        setAreDraftsLoaded(true);
       }
     };
 
@@ -531,39 +897,127 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
     };
   }, []);
 
-  const spawnNewTrace = ({ sectionLabel, label, entry } = {}) => {
-    const now = new Date();
-    const baseName = formatTraceName(now);
-    const timestampSuffix = baseName.replace(/^Trace-/, '');
-    const cleanedLabel =
-      label && typeof label === 'string' && label.trim().length
-        ? label.trim().replace(/\s+/g, '')
-        : sectionLabel && sectionLabel.trim().length
-        ? sectionLabel.trim().replace(/\s+/g, '')
-        : '';
-    const traceLabel = cleanedLabel
-      ? `${cleanedLabel}.${timestampSuffix}`
-      : `${baseName}_draft`;
+  const spawnNewTrace = useCallback(
+    ({ sectionLabel, label, entry, templateOverride } = {}) => {
+      const now = new Date();
+      const baseName = formatTraceName(now);
+      const timestampSuffix = baseName.replace(/^Trace-/, '');
+      const cleanedLabel =
+        label && typeof label === 'string' && label.trim().length
+          ? label.trim().replace(/\s+/g, '')
+          : sectionLabel && sectionLabel.trim().length
+          ? sectionLabel.trim().replace(/\s+/g, '')
+          : '';
+      const traceLabel = cleanedLabel
+        ? `${cleanedLabel}.${timestampSuffix}`
+        : `${baseName}_draft`;
 
-    const initialFlow = buildInitialFlowFromEntry(entry);
+      const template =
+        templateOverride ||
+        (entry
+          ? resolveTemplateForEntry({
+              sectionLabel,
+              entry
+            })
+          : defaultTemplate);
 
-    const newTrace = {
-      ...createTraceShell(now),
-      label: traceLabel,
-      isDraft: true,
-      baseTraceId: null,
-      steps: initialFlow.steps,
-      links: initialFlow.links
-    };
-    const nextTraces = [newTrace, ...traces];
-    setTraces(nextTraces);
-    setActiveTraceId(newTrace.id);
-    setIsTraceExplorerOpen(true);
-    saveDraftsToIndexedDB(nextTraces).catch((error) =>
-      console.error('Failed to save new draft trace', error)
-    );
-    return newTrace;
-  };
+      const initialFlow =
+        entry && template
+          ? buildFlowFromTemplate(entry, {
+              canvasWidth: canvasRef.current?.clientWidth,
+              sequence: template.sequence,
+              stepsById,
+              fanIn: template.fanIn,
+              loopPatterns: template.loopPatterns
+            })
+          : { steps: [], links: [] };
+
+      const newTrace = {
+        ...createTraceShell(now),
+        label: traceLabel,
+        isDraft: true,
+        baseTraceId: null,
+        templateId: template?.id || null,
+        steps: initialFlow.steps,
+        links: initialFlow.links
+      };
+
+      setTraces((prev) => {
+        const nextTraces = [newTrace, ...prev];
+        tracesRef.current = nextTraces;
+        saveDraftsToIndexedDB(nextTraces).catch((error) =>
+          console.error('Failed to save new draft trace', error)
+        );
+        return nextTraces;
+      });
+      setActiveTraceId(newTrace.id);
+      setIsTraceExplorerOpen(true);
+      return newTrace;
+    },
+    [
+      defaultTemplate,
+      resolveTemplateForEntry,
+      stepsById,
+      saveDraftsToIndexedDB
+    ]
+  );
+
+  const handleNewTrace = useCallback(
+    (options = {}) => {
+      return spawnNewTrace(options);
+    },
+    [spawnNewTrace]
+  );
+
+  const processAuditRequest = useCallback(
+    (request) => {
+      if (!request) {
+        return;
+      }
+
+      const template = resolveTemplateForEntry({
+        sectionLabel: request.section,
+        entry: request.entry
+      });
+      handleNewTrace({
+        sectionLabel: request.section,
+        label: request.label,
+        entry: request.entry,
+        templateOverride: template
+      });
+      lastAuditRequestIdRef.current = request.id;
+      if (onAuditTraceConsumed) {
+        onAuditTraceConsumed();
+      }
+    },
+    [resolveTemplateForEntry, handleNewTrace, onAuditTraceConsumed]
+  );
+
+  useEffect(() => {
+    if (!auditTraceRequest || auditTraceRequest.id === lastAuditRequestIdRef.current) {
+      return;
+    }
+
+    if (!areDraftsLoaded) {
+      pendingAuditRequestRef.current = auditTraceRequest;
+      return;
+    }
+
+    pendingAuditRequestRef.current = null;
+    processAuditRequest(auditTraceRequest);
+  }, [auditTraceRequest, areDraftsLoaded, processAuditRequest]);
+
+  useEffect(() => {
+    if (!areDraftsLoaded) {
+      return;
+    }
+
+    if (pendingAuditRequestRef.current) {
+      const request = pendingAuditRequestRef.current;
+      pendingAuditRequestRef.current = null;
+      processAuditRequest(request);
+    }
+  }, [areDraftsLoaded, processAuditRequest]);
 
   const commitTraceRename = useCallback(
     (trace, proposedLabel, { forcePermanent = false } = {}) => {
@@ -638,10 +1092,6 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
     [saveDraftsToIndexedDB]
   );
 
-  const handleNewTrace = () => {
-    spawnNewTrace();
-  };
-
   const handleSelectTrace = (traceId) => {
     setActiveTraceId(traceId);
     setSelectedStepId(null);
@@ -662,6 +1112,7 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
 
     setTraces((prev) => {
       const updated = prev.filter((trace) => trace.id !== traceId);
+      tracesRef.current = updated;
       saveDraftsToIndexedDB(updated).catch((error) =>
         console.error('Failed to persist traces after deletion', error)
       );
@@ -816,7 +1267,7 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
     event.preventDefault();
 
     if (!activeTraceId && !pendingCenteredTraceRef.current) {
-      const created = spawnNewTrace();
+      const created = handleNewTrace();
       pendingCenteredTraceRef.current = created.id;
     }
 
@@ -857,20 +1308,13 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
     let createdStepId = null;
 
     if (!targetTraceId) {
-      createdTrace = spawnNewTrace();
+      createdTrace = handleNewTrace();
       targetTraceId = createdTrace.id;
       pendingCenteredTraceRef.current = targetTraceId;
     }
 
     setTraces((prev) => {
-      let workingTraces = prev;
-
-      if (createdTrace) {
-        workingTraces = [createdTrace, ...prev];
-      } else {
-        workingTraces = [...prev];
-      }
-
+      const workingTraces = [...prev];
       const shouldCenter = pendingCenteredTraceRef.current === targetTraceId;
 
       if (shouldCenter && canvasRect) {
@@ -896,13 +1340,25 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
       };
       createdStepId = newStep.id;
 
-      return workingTraces.map((trace) => {
+      const nextTraces = workingTraces.map((trace) => {
         if (trace.id !== targetTraceId) {
           return trace;
         }
         const updatedSteps = [...(trace.steps || []), newStep];
         return { ...trace, steps: updatedSteps, links: trace.links || [] };
       });
+
+      tracesRef.current = nextTraces;
+
+      if (createdTrace) {
+        setActiveTraceId(createdTrace.id);
+      }
+
+      saveDraftsToIndexedDB(nextTraces).catch((error) =>
+        console.error('Failed to persist trace after drop', error)
+      );
+
+      return nextTraces;
     });
 
     pendingCenteredTraceRef.current = null;
@@ -971,7 +1427,7 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
     if (
       typeof window === 'undefined' ||
       typeof indexedDB === 'undefined' ||
-      !draftsLoadedRef.current
+      !areDraftsLoaded
     ) {
       return;
     }
@@ -984,7 +1440,8 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
           return;
         }
 
-        if (!traces.length) {
+        const snapshot = tracesRef.current;
+        if (!snapshot.length) {
           if (!hasPersistedSessionRef.current) {
             return;
           }
@@ -993,7 +1450,7 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
           return;
         }
 
-        await saveDraftsToIndexedDB(traces);
+        await saveDraftsToIndexedDB(snapshot);
         hasPersistedSessionRef.current = true;
       } catch (error) {
         console.error('Failed to persist decision trace drafts', error);
@@ -1005,7 +1462,7 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
     return () => {
       cancelled = true;
     };
-  }, [traces, saveDraftsToIndexedDB]);
+  }, [traces, saveDraftsToIndexedDB, areDraftsLoaded]);
 
   useEffect(() => {
     const validIds = new Set(decisionTraceTimeline.map((step) => step.id));
