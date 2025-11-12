@@ -2470,7 +2470,7 @@ const createTraceShell = (date = new Date()) => {
                     orient="auto"
                     markerUnits="strokeWidth"
                   >
-                    <path d="M2 2 L10 6 L2 10 Z" fill="rgba(67, 56, 202, 0.9)" />
+                  <path d="M2 2 L10 6 L2 10 Z" fill="rgba(29, 78, 216, 0.9)" />
                   </marker>
                 </defs>
                 {(activeTrace?.links || []).map((link) => {

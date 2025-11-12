@@ -97,22 +97,24 @@
 }
 
 .actions-trade-table tbody tr:hover td {
-  background: rgba(124, 77, 255, 0.06);
+  background: rgba(59, 130, 246, 0.06);
 }
 
 :root {
   --primary-bg: #f8f9fa;
   --secondary-bg: #ffffff;
-  --accent-color: #6c5ce7;
-  --accent-light: #a29bfe;
-  --text-primary: #2d3436;
-  --text-secondary: #636e72;
-  --positive: #00b894;
-  --negative: #d63031;
+  --accent-color: #2563eb;
+  --accent-light: #60a5fa;
+  --accent-dark: #1d4ed8;
+  --accent-mid: #3b82f6;
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --positive: #0ea5e9;
+  --negative: #ef4444;
   --border-color: #dfe6e9;
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 2px 4px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 6px rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0 10px 15px rgba(15, 23, 42, 0.15);
 }
 
 .dashboard {
@@ -372,7 +374,7 @@
 .chatbot-input:focus {
   outline: none;
   border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .chatbot-input-actions {
@@ -414,12 +416,12 @@
   justify-content: center;
   gap: 0.5rem;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
 .chatbot-send-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(124, 77, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
   background: linear-gradient(135deg, var(--accent-light) 0%, var(--accent-color) 100%);
 }
 
@@ -1078,14 +1080,14 @@
 
 /* Agent Mode Styles */
 .dashboard.agent-mode {
-  --accent-color: #7c4dff;
-  --accent-light: #b39ddb;
+  --accent-color: #2563eb;
+  --accent-light: #60a5fa;
   --card-bg: #ffffff;
-  --card-hover: #f8f9fa;
-  --text-primary: #2d3436;
-  --text-secondary: #636e72;
-  --border-color: #dfe6e9;
-  background: #f8f9fa;
+  --card-hover: #f5f9ff;
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --border-color: #dbeafe;
+  background: #f1f5ff;
 }
 
 .dashboard.agent-mode .dashboard-content {
@@ -1279,7 +1281,7 @@
 }
 
 .section-context:hover {
-  background: rgba(124, 77, 255, 0.02);
+  background: rgba(59, 130, 246, 0.02);
 }
 
 .section-header-with-icon {
@@ -1983,7 +1985,7 @@
 }
 
 .actions-trade-table tbody tr:hover td {
-  background: rgba(124, 77, 255, 0.06);
+  background: rgba(59, 130, 246, 0.06);
 }
 
 .trade-type.buy {
@@ -2005,13 +2007,13 @@
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(124, 77, 255, 0.25);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.25);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .execute-trade-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px rgba(124, 77, 255, 0.35);
+  box-shadow: 0 8px 18px rgba(59, 130, 246, 0.35);
 }
 
 .actions-popover-body {
@@ -2107,14 +2109,14 @@
   color: white;
   border: none;
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
   margin-left: auto;
   transition: all 0.3s ease;
 }
 
 .analysis-action-button.ask-agent-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(124, 77, 255, 0.4);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
   background: linear-gradient(135deg, var(--accent-light) 0%, var(--accent-color) 100%);
 }
 
@@ -2228,7 +2230,7 @@
   background: var(--secondary-bg);
 }
 
-.kind-text { background: rgba(124, 77, 255, 0.08); }
+.kind-text { background: rgba(59, 130, 246, 0.08); }
 .kind-bullets { background: rgba(46, 213, 115, 0.12); }
 .kind-code { background: rgba(52, 152, 219, 0.12); }
 .kind-tool { background: rgba(241, 196, 15, 0.16); }
@@ -2332,8 +2334,8 @@
 }
 
 .thinking-realtime {
-  background: rgba(124, 77, 255, 0.05);
-  border: 1px solid rgba(124, 77, 255, 0.2);
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   color: var(--accent-color);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   white-space: pre-wrap;
@@ -2421,7 +2423,7 @@
 }
 
 .thinking-message {
-  background: rgba(124, 77, 255, 0.05);
+  background: rgba(59, 130, 246, 0.05);
   padding: 1rem;
   border-radius: 8px;
   border-left: 3px solid var(--accent-color);
@@ -2550,7 +2552,7 @@
 
 /* Morning Briefing Styling */
 .thinking-message {
-  background: rgba(124, 77, 255, 0.05);
+  background: rgba(59, 130, 246, 0.05);
   padding: 1rem;
   border-radius: 8px;
   border-left: 3px solid var(--accent-color);
@@ -4141,7 +4143,7 @@
 }
 
 .legend-shape.capture {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
 }
 
 .legend-shape.context {
@@ -4216,13 +4218,13 @@
   height: 2.1rem;
   border-radius: 12px;
   background: var(--accent-color);
-  box-shadow: 0 0 0 6px rgba(124, 77, 255, 0.12), 0 0 0 1px rgba(148, 163, 184, 0.35);
+  box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.12), 0 0 0 1px rgba(148, 163, 184, 0.35);
   flex-shrink: 0;
 }
 
 .trace-node.capture .trace-node-shape {
   clip-path: circle();
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
 }
 
 .trace-node.context .trace-node-shape {
@@ -4323,8 +4325,8 @@
 }
 
 .trace-action-btn:hover {
-  background: rgba(124, 77, 255, 0.12);
-  border-color: rgba(124, 77, 255, 0.35);
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
   box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
 }
 
@@ -4333,10 +4335,10 @@
 }
 
 .trace-action-btn.primary {
-  background: linear-gradient(135deg, #7c4dff, #9d6cff);
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 12px 24px rgba(124, 77, 255, 0.25);
+  box-shadow: 0 12px 24px rgba(59, 130, 246, 0.25);
 }
 
 .trace-action-btn.primary:hover {
@@ -4370,7 +4372,7 @@
 }
 
 .trace-accordion-section.open {
-  border-color: rgba(124, 77, 255, 0.45);
+  border-color: rgba(59, 130, 246, 0.45);
   box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
 }
 
@@ -4454,12 +4456,12 @@
 .trace-menu-header-static:hover {
   transform: translateY(-1px);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
-  border-color: rgba(124, 77, 255, 0.5);
+  border-color: rgba(59, 130, 246, 0.5);
 }
 
 .trace-menu-header-static .trace-menu-drag-hint {
   font-size: 0.7rem;
-  color: rgba(124, 77, 255, 0.8);
+  color: rgba(59, 130, 246, 0.8);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -4525,8 +4527,8 @@
 }
 
 .trace-explorer-item:hover {
-  border-color: rgba(124, 77, 255, 0.35);
-  box-shadow: 0 10px 20px rgba(124, 77, 255, 0.15);
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.15);
 }
 
 .trace-explorer-item:active {
@@ -4534,13 +4536,13 @@
 }
 
 .trace-explorer-item.active {
-  border-color: rgba(124, 77, 255, 0.55);
-  box-shadow: 0 14px 28px rgba(124, 77, 255, 0.22);
-  background: rgba(124, 77, 255, 0.12);
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 14px 28px rgba(59, 130, 246, 0.22);
+  background: rgba(59, 130, 246, 0.12);
 }
 
 .trace-explorer-item.active .trace-explorer-tag {
-  background: rgba(124, 77, 255, 0.2);
+  background: rgba(59, 130, 246, 0.2);
   color: var(--accent-color);
 }
 
@@ -4610,7 +4612,7 @@
   font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0.03em;
-  background: rgba(124, 77, 255, 0.92);
+  background: rgba(59, 130, 246, 0.92);
   padding: 0.45rem 1.1rem;
 }
 
@@ -4658,13 +4660,13 @@
 
 .trace-tab:hover {
   background: rgba(226, 232, 240, 0.95);
-  border-color: rgba(124, 77, 255, 0.35);
+  border-color: rgba(59, 130, 246, 0.35);
   color: rgba(88, 28, 135, 0.92);
 }
 
 .trace-tab.active {
-  background: rgba(124, 77, 255, 0.16);
-  border-color: rgba(124, 77, 255, 0.55);
+  background: rgba(59, 130, 246, 0.16);
+  border-color: rgba(59, 130, 246, 0.55);
   color: rgba(76, 29, 149, 0.95);
   box-shadow: 0 4px 10px rgba(76, 29, 149, 0.12);
 }
@@ -4705,7 +4707,7 @@
 }
 
 .trace-context-item:hover {
-  background: rgba(124, 77, 255, 0.25);
+  background: rgba(59, 130, 246, 0.25);
 }
 
 .trace-context-item + .trace-context-item {
@@ -4792,15 +4794,15 @@
 .trace-node-properties-table-title {
   font-size: 0.88rem;
   font-weight: 600;
-  color: #4338ca;
+  color: var(--accent-dark);
   text-transform: uppercase;
   letter-spacing: 0.045em;
 }
 
 .trace-node-properties-add {
-  background: rgba(67, 56, 202, 0.08);
-  border: 1px solid rgba(67, 56, 202, 0.2);
-  color: #4338ca;
+  background: rgba(29, 78, 216, 0.08);
+  border: 1px solid rgba(29, 78, 216, 0.2);
+  color: var(--accent-dark);
   border-radius: 999px;
   padding: 0.25rem 0.75rem;
   font-size: 0.75rem;
@@ -4809,7 +4811,7 @@
 }
 
 .trace-node-properties-add:hover {
-  background: rgba(99, 102, 241, 0.15);
+  background: rgba(59, 130, 246, 0.15);
 }
 
 .trace-node-properties-grid {
@@ -4829,7 +4831,7 @@
 }
 
 .trace-node-properties-grid thead {
-  background: rgba(67, 56, 202, 0.08);
+  background: rgba(29, 78, 216, 0.08);
   color: #312e81;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -4874,8 +4876,8 @@
 .trace-node-properties-select:focus,
 .trace-node-properties-input:focus {
   outline: none;
-  border-color: rgba(99, 102, 241, 0.75);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  border-color: rgba(37, 99, 235, 0.75);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
 .trace-node-properties-grid td[data-label]::before {
@@ -4887,7 +4889,7 @@
 }
 
 .trace-node-properties-grid tbody tr:hover {
-  background: rgba(124, 77, 255, 0.05);
+  background: rgba(59, 130, 246, 0.05);
 }
 
 .trace-node-properties-grid tbody tr:last-child {
@@ -4924,7 +4926,7 @@
 }
 
 .trace-node-properties-save {
-  background: linear-gradient(135deg, #6366f1, #4338ca);
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
   color: #f8fafc;
   border: none;
   border-radius: 999px;
@@ -4932,11 +4934,11 @@
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.35);
 }
 
 .trace-node-properties-save:hover {
-  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.42);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35);
   transform: translateY(-1px);
 }
 
@@ -4968,7 +4970,7 @@
 }
 
 .agent-mode .decision-trace-canvas .decision-trace {
-  background: rgba(233, 236, 239, 0.95);
+  background: rgba(226, 241, 255, 0.95);
 }
 
 .decision-trace-empty-state {
@@ -4999,7 +5001,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  border: 2px dashed rgba(124, 77, 255, 0.45);
+  border: 2px dashed rgba(59, 130, 246, 0.45);
   border-radius: 12px;
   pointer-events: none;
 }
@@ -5021,8 +5023,8 @@
   gap: 0.25rem;
   padding: 0.6rem 0.75rem;
   border-radius: 14px;
-  background: rgba(124, 77, 255, 0.12);
-  border: 1px solid rgba(124, 77, 255, 0.35);
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.35);
   color: #312e81;
   min-width: 74px;
   min-height: 74px;
@@ -5041,7 +5043,7 @@
   font-size: 1.15rem;
   line-height: 1;
   color: #5b21b6;
-  box-shadow: inset 0 0 0 2px rgba(124, 77, 255, 0.18);
+  box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.18);
 }
 
 .trace-node-compact .trace-node-title {
@@ -5098,7 +5100,7 @@
 .trace-node-instance.selected .trace-node-compact {
   border-color: rgba(91, 33, 182, 0.85);
   box-shadow: 0 18px 34px rgba(91, 33, 182, 0.22);
-  background: rgba(124, 77, 255, 0.18);
+  background: rgba(59, 130, 246, 0.18);
 }
 
 .trace-links-layer {
@@ -5111,10 +5113,10 @@
 }
 
 .trace-link-path {
-  stroke: rgba(67, 56, 202, 0.68);
+  stroke: rgba(29, 78, 216, 0.68);
   stroke-width: 2.2px;
   fill: none;
-  filter: drop-shadow(0 3px 6px rgba(67, 56, 202, 0.25));
+  filter: drop-shadow(0 3px 6px rgba(29, 78, 216, 0.25));
   cursor: pointer;
 }
 
@@ -5135,7 +5137,7 @@
 }
 
 .trace-node.llm .trace-node-shape {
-  background: linear-gradient(135deg, #6366f1, #4338ca);
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
 }
 
 .trace-node.rag .trace-node-shape {
