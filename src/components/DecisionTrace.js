@@ -579,6 +579,8 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
   const [draggingStepId, setDraggingStepId] = useState(null);
   const [flowReference, setFlowReference] = useState(FALLBACK_FLOW_REFERENCE);
   const [areDraftsLoaded, setAreDraftsLoaded] = useState(false);
+  const [nodeContextMenu, setNodeContextMenu] = useState(null); // { stepId, x, y }
+  const [nodePropertiesModal, setNodePropertiesModal] = useState(null); // { step }
 
   const canvasRef = useRef(null);
   const pendingCenteredTraceRef = useRef(null);
@@ -702,15 +704,10 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
   const decisionTraceTimeline = useMemo(() => activeTrace?.steps || [], [activeTrace]);
 
   const sortedOpenTraces = useMemo(() => {
-    return traces
-      .map((trace) => ({
-        id: trace.id,
-        label:
-          trace.label && trace.label.length > 18
-            ? `${trace.label.slice(0, 15)}…`
-            : trace.label || 'Untitled'
-      }))
-      .slice(0, 12);
+    return traces.slice(0, 12).map((trace) => ({
+      id: trace.id,
+      label: trace.label || 'Untitled'
+    }));
   }, [traces]);
 
   const stepCategoryMap = useMemo(() => {
@@ -898,7 +895,7 @@ const createTraceShell = (date = new Date()) => {
   }, []);
 
   const spawnNewTrace = useCallback(
-    ({ sectionLabel, label, entry, templateOverride } = {}) => {
+    ({ sectionLabel, label, displayName, entry, templateOverride } = {}) => {
       const now = new Date();
       const baseName = formatTraceName(now);
       const timestampSuffix = baseName.replace(/^Trace-/, '');
@@ -935,6 +932,7 @@ const createTraceShell = (date = new Date()) => {
       const newTrace = {
         ...createTraceShell(now),
         label: traceLabel,
+        displayName: displayName || traceLabel,
         isDraft: true,
         baseTraceId: null,
         templateId: template?.id || null,
@@ -982,6 +980,7 @@ const createTraceShell = (date = new Date()) => {
       handleNewTrace({
         sectionLabel: request.section,
         label: request.label,
+        displayName: request.displayName,
         entry: request.entry,
         templateOverride: template
       });
@@ -1367,6 +1366,241 @@ const createTraceShell = (date = new Date()) => {
     }
   };
 
+  const handleNodeContextMenu = useCallback(
+    (event, step) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedStepId(step.id);
+      setTraceContextMenu(null);
+      setNodeContextMenu({
+        stepId: step.id,
+        x: event.clientX,
+        y: event.clientY
+      });
+    },
+    []
+  );
+
+  const closeNodePropertiesModal = useCallback(() => {
+    setNodePropertiesModal(null);
+  }, []);
+
+  const handlePropertiesFieldChange = useCallback((field, value) => {
+    setNodePropertiesModal((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      return {
+        ...prev,
+        draft: {
+          ...(prev.draft || {}),
+          [field]: value
+        }
+      };
+    });
+  }, []);
+
+  const handlePropertiesTableChange = useCallback(
+    (rowId, updates) => {
+      setNodePropertiesModal((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        const table = Array.isArray(prev.draft?.table) ? prev.draft.table : [];
+        const updatedTable = table.map((row) =>
+          row.id === rowId
+            ? {
+                ...row,
+                ...updates
+              }
+            : row
+        );
+        return {
+          ...prev,
+          draft: {
+            ...(prev.draft || {}),
+            table: updatedTable
+          }
+        };
+      });
+    },
+    []
+  );
+  const handleSaveNodeProperties = useCallback(() => {
+    if (!nodePropertiesModal || !nodePropertiesModal.step) {
+      return;
+    }
+    const { step, draft } = nodePropertiesModal;
+    const nextTable = Array.isArray(draft?.table) ? draft.table : [];
+    setTraces((prev) =>
+      prev.map((trace) => {
+        if (trace.id !== activeTraceId) {
+          return trace;
+        }
+        const updatedSteps = (trace.steps || []).map((existingStep) => {
+          if (existingStep.id !== step.id) {
+            return existingStep;
+          }
+          return {
+            ...existingStep,
+            propertiesTable: nextTable.map((row) => ({
+              id: row.id || `row-${Date.now()}`,
+              key: row.key || '',
+              value: row.value || ''
+            }))
+          };
+        });
+        const updatedTrace = {
+          ...trace,
+          steps: updatedSteps
+        };
+        return updatedTrace;
+      })
+    );
+    saveDraftsToIndexedDB(tracesRef.current).catch((error) =>
+      console.error('Failed to persist trace after properties update', error)
+    );
+    setTraces((prev) =>
+      prev.map((trace) => {
+        if (trace.id !== activeTraceId) {
+          return trace;
+        }
+        const updatedSteps = (trace.steps || []).map((existingStep) => {
+          if (existingStep.id !== nodePropertiesModal.step.id) {
+            return existingStep;
+          }
+          return {
+            ...existingStep,
+            propertiesTable: nextTable.map((row) => ({
+              id: row.id || `row-${Date.now()}`,
+              key: row.key || '',
+              value: row.value || ''
+            }))
+          };
+        });
+        const updatedTrace = {
+          ...trace,
+          steps: updatedSteps
+        };
+        return updatedTrace;
+      })
+    );
+    saveDraftsToIndexedDB(tracesRef.current).catch((error) =>
+      console.error('Failed to persist trace after properties update', error)
+    );
+    closeNodePropertiesModal();
+  }, [nodePropertiesModal, activeTraceId, saveDraftsToIndexedDB, closeNodePropertiesModal]);
+  const handleDeletePropertiesRow = useCallback((rowId) => {
+    setNodePropertiesModal((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const table = Array.isArray(prev.draft?.table) ? prev.draft.table : [];
+      const updatedTable = table.filter((row) => row.id !== rowId);
+      return {
+        ...prev,
+        draft: {
+          ...(prev.draft || {}),
+          table: updatedTable,
+          editingValue:
+            prev.draft?.editingValue?.rowId === rowId ? null : prev.draft?.editingValue || null
+        }
+      };
+    });
+  }, []);
+
+  const getPropertiesOptionsForStep = useCallback((stepType) => {
+    switch (stepType) {
+      case 'internal':
+        return [
+          'Rest Endpoint',
+          'GQL Endpoint',
+          'Kafka Consumer',
+          'S3',
+          'Sharepoint',
+          'AEM',
+          'NAS',
+          'File System'
+        ];
+      case 'external':
+        return [
+          'Bloomberg',
+          'Alpha Vantage',
+          'Polygon',
+          'Yahoo Finance',
+          'Alladin'
+        ];
+      case 'agent':
+        return [
+          'Internal Agent',
+          'ChatGPT Agent',
+          'Warp',
+          'Cursor',
+          'Copilot',
+          'Claude Code',
+          'Codex'
+        ];
+      case 'tooling':
+        return ['API Endpoint'];
+      case 'llm':
+        return [
+          'ChatGPT',
+          'Claude',
+          'Grok',
+          'Deepseek',
+          'Gemini',
+          'Federated Model Internal Call'
+        ];
+      default:
+        return [];
+    }
+  }, []);
+
+  const handleOpenNodeProperties = useCallback(
+    (stepId) => {
+      const step =
+        decisionTraceTimeline.find((item) => item.id === stepId) ||
+        (activeTrace?.steps || []).find((item) => item.id === stepId);
+      if (!step) {
+        setNodeContextMenu(null);
+        return;
+      }
+      const existingTable = Array.isArray(step.propertiesTable)
+        ? step.propertiesTable
+        : [];
+      const draftTable = existingTable.length
+        ? existingTable.map((row, index) => ({
+            id: row.id || `row-${index}-${Date.now()}`,
+            key: row.key || `Property ${index + 1}`,
+            value: row.value || '',
+            source: row.source || ''
+          }))
+        : [
+            {
+              id: `row-${Date.now()}`,
+              key: 'Description',
+              value:
+                step.description ||
+                step.summary ||
+                step.prompt ||
+                (Array.isArray(step.bullets) ? step.bullets.join(', ') : '') ||
+                '',
+              source: step.owner || 'System'
+            }
+          ];
+      setNodePropertiesModal({
+        step,
+        draft: {
+          table: draftTable,
+          options: getPropertiesOptionsForStep(step.type),
+          editingValue: null
+        }
+      });
+      setNodeContextMenu(null);
+    },
+    [decisionTraceTimeline, activeTrace, getPropertiesOptionsForStep]
+  );
+
   useEffect(() => {
     setSelectedStepId(null);
   }, [activeTraceId]);
@@ -1422,6 +1656,252 @@ const createTraceShell = (date = new Date()) => {
       document.body
     );
   }, [traceContextMenu, confirmAndDeleteTrace, handleRenameTrace, handleExportTrace]);
+
+  const getTraceDisplayName = useCallback(
+    (trace) => {
+      if (!trace) {
+        return 'Untitled Trace';
+      }
+      const raw = trace.displayName || trace.fullName || trace.label || 'Untitled Trace';
+      if (typeof raw !== 'string') {
+        return 'Untitled Trace';
+      }
+      return raw.replace(/_draft$/i, '');
+    },
+    []
+  );
+
+  const renderedNodeContextMenu = useMemo(() => {
+    if (!nodeContextMenu) {
+      return null;
+    }
+
+    return ReactDOM.createPortal(
+      <div
+        className="trace-context-menu trace-node-context-menu"
+        style={{ left: `${nodeContextMenu.x}px`, top: `${nodeContextMenu.y}px` }}
+      >
+        <button
+          className="trace-context-item"
+          onClick={() => handleOpenNodeProperties(nodeContextMenu.stepId)}
+        >
+          Properties
+        </button>
+      </div>,
+      document.body
+    );
+  }, [nodeContextMenu, handleOpenNodeProperties]);
+
+  const renderedNodePropertiesModal = useMemo(() => {
+    if (!nodePropertiesModal) {
+      return null;
+    }
+
+    const { step, draft } = nodePropertiesModal;
+    const tableRows = Array.isArray(draft?.table) ? draft.table : [];
+    const categoryMeta = stepCategoryMap[step.type] || {};
+    const title = step.label || categoryMeta.label || 'Step Properties';
+
+    return ReactDOM.createPortal(
+      <div
+        className="trace-node-properties-backdrop"
+        onClick={closeNodePropertiesModal}
+        role="presentation"
+      >
+        <div
+          className="trace-node-properties-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`trace-node-properties-title-${step.id}`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="trace-node-properties-header">
+            <h3 id={`trace-node-properties-title-${step.id}`}>{title}</h3>
+            <button
+              type="button"
+              className="trace-node-properties-close"
+              onClick={closeNodePropertiesModal}
+              aria-label="Close properties"
+            >
+              ×
+            </button>
+          </div>
+          <div className="trace-node-properties-body">
+            <div className="trace-node-properties-table">
+              <div className="trace-node-properties-table-head">
+                <span className="trace-node-properties-table-title">Existing Properties</span>
+            <button
+              type="button"
+              className="trace-node-properties-add"
+              onClick={() =>
+                setNodePropertiesModal((prev) => {
+                  if (!prev) return prev;
+                  const nextTable = Array.isArray(prev.draft?.table)
+                    ? prev.draft.table.slice()
+                    : [];
+                  nextTable.push({
+                    id: `row-${Date.now()}`,
+                    key: '',
+                    value: '',
+                    source: '',
+                    isNew: true
+                  });
+                  handlePropertiesFieldChange('editingValue', {
+                    rowId: (nextTable[nextTable.length - 1] || {}).id,
+                    field: 'key',
+                    mode: 'select'
+                  });
+                  return {
+                    ...prev,
+                    draft: {
+                      ...(prev.draft || {}),
+                      table: nextTable,
+                      editingValue: {
+                        rowId: (nextTable[nextTable.length - 1] || {}).id,
+                        field: 'key',
+                        mode: 'select'
+                      }
+                    }
+                  };
+                })
+              }
+            >
+              + Add Row
+            </button>
+              </div>
+            <table className="trace-node-properties-grid">
+                <thead>
+                  <tr>
+                    <th>Property</th>
+                    <th>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.length === 0 ? (
+                    <tr>
+                    <td colSpan={2} className="empty">
+                        No properties recorded for this step yet.
+                      </td>
+                    </tr>
+                  ) : (
+                tableRows.map((row, index) => {
+                  const isEditableValue =
+                    nodePropertiesModal?.draft?.editingValue?.rowId === row.id &&
+                    nodePropertiesModal?.draft?.editingValue?.field === 'value';
+                  const isEditableKey =
+                    nodePropertiesModal?.draft?.editingValue?.rowId === row.id &&
+                    nodePropertiesModal?.draft?.editingValue?.field === 'key';
+
+                  return (
+                    <tr key={row.id || index}>
+                      <td data-label="Property">
+                        {isEditableKey ? (
+                          <select
+                            autoFocus
+                            className="trace-node-properties-select"
+                            value={row.key || ''}
+                            onChange={(event) => {
+                              handlePropertiesTableChange(row.id, { key: event.target.value });
+                              handlePropertiesFieldChange('editingValue', {
+                                rowId: row.id,
+                                field: 'value',
+                                mode: 'input'
+                              });
+                            }}
+                            onBlur={() => {
+                              handlePropertiesFieldChange('editingValue', null);
+                            }}
+                          >
+                            <option value="" disabled>
+                              Select property
+                            </option>
+                            {(nodePropertiesModal?.draft?.options || []).map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <button
+                            type="button"
+                            className="trace-node-properties-cell-button"
+                            onClick={() =>
+                              handlePropertiesFieldChange('editingValue', {
+                                rowId: row.id,
+                                field: 'key',
+                                mode: 'select'
+                              })
+                            }
+                          >
+                            {row.key || `Property ${index + 1}`}
+                          </button>
+                        )}
+                      </td>
+                      <td data-label="Value" className="trace-node-properties-value-cell">
+                        {isEditableValue ? (
+                          <input
+                            autoFocus
+                            className="trace-node-properties-input"
+                            value={row.value || ''}
+                            onChange={(event) =>
+                              handlePropertiesTableChange(row.id, { value: event.target.value })
+                            }
+                            onBlur={() => handlePropertiesFieldChange('editingValue', null)}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="trace-node-properties-cell-button"
+                            onClick={() =>
+                              handlePropertiesFieldChange('editingValue', {
+                                rowId: row.id,
+                                field: 'value',
+                                mode: 'input'
+                              })
+                            }
+                          >
+                            {row.value && row.value.trim().length ? row.value : '—'}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="trace-node-properties-delete-row"
+                          onClick={() => handleDeletePropertiesRow(row.id)}
+                          aria-label={`Delete ${row.key || `row ${index + 1}`}`}
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        <div className="trace-node-properties-footer">
+          <button
+            type="button"
+            className="trace-node-properties-save"
+            onClick={handleSaveNodeProperties}
+          >
+            Save
+          </button>
+        </div>
+        </div>
+      </div>,
+      document.body
+    );
+  }, [
+    nodePropertiesModal,
+    stepCategoryMap,
+    closeNodePropertiesModal,
+    handlePropertiesTableChange,
+    handlePropertiesFieldChange,
+    handleDeletePropertiesRow,
+    handleSaveNodeProperties
+  ]);
 
   useEffect(() => {
     if (
@@ -1732,6 +2212,56 @@ const createTraceShell = (date = new Date()) => {
     };
   }, [traceContextMenu]);
 
+  useEffect(() => {
+    if (!nodeContextMenu) {
+      return;
+    }
+
+    const handleClickAway = (event) => {
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        if (target.closest('.trace-node-context-menu')) {
+          return;
+        }
+      }
+      setNodeContextMenu(null);
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setNodeContextMenu(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickAway);
+    document.addEventListener('contextmenu', handleClickAway);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickAway);
+      document.removeEventListener('contextmenu', handleClickAway);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [nodeContextMenu]);
+
+  useEffect(() => {
+    if (!nodePropertiesModal) {
+      return;
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        closeNodePropertiesModal();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [nodePropertiesModal, closeNodePropertiesModal]);
+
   return (
     <div className={`agent-tab-content ${showChatbot ? 'with-chatbot' : ''}`}>
       <div className="agent-tab-main decision-trace-layout">
@@ -1919,7 +2449,7 @@ const createTraceShell = (date = new Date()) => {
           )}
           {activeTrace && (
             <div className={`trace-overlay ${decisionTraceTimeline.length > 0 ? 'with-content' : ''}`}>
-              <div className="trace-overlay-tab">{activeTrace.label}</div>
+              <div className="trace-overlay-tab">{getTraceDisplayName(activeTrace)}</div>
               <div className="trace-overlay-body">
                 {decisionTraceTimeline.length === 0 ? (
                   <p>This trace workspace is ready. Add steps from the panel to begin capturing lineage.</p>
@@ -2030,6 +2560,7 @@ const createTraceShell = (date = new Date()) => {
                     }}
                     onMouseDown={(event) => handleNodeMouseDown(event, step)}
                     onDoubleClick={(event) => handleNodeDoubleClick(event, step)}
+                    onContextMenu={(event) => handleNodeContextMenu(event, step)}
                   >
                     <div
                       ref={getNodeRefCallback(step.id)}
@@ -2054,6 +2585,8 @@ const createTraceShell = (date = new Date()) => {
     </div>
       {renderChatbot && renderChatbot()}
       {renderedContextMenu}
+      {renderedNodeContextMenu}
+      {renderedNodePropertiesModal}
     </div>
   );
 }
