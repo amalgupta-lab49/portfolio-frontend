@@ -2352,10 +2352,12 @@ function Dashboard() {
 
       setAgentActiveTab('decision');
       setShowThinkingPopover(null);
+      const fullSectionName = labelHint && labelHint.trim().length ? labelHint : fallbackLabel;
       setAuditTraceRequest({
         id: Date.now(),
         section,
         label: sanitizedLabel,
+        displayName: fullSectionName,
         entry,
         entrySummary: {
           id: entry?.id,
