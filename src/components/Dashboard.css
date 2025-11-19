@@ -215,6 +215,9 @@
   padding: 2rem;
   box-shadow: var(--shadow-md);
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
   transition: margin-top 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
               padding 0.4s cubic-bezier(0.4, 0, 0.2, 1),
               transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
@@ -1278,6 +1281,31 @@
 /* Section context styling */
 .section-context {
   position: relative;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+}
+
+.portfolio-section {
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.portfolio-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.portfolio-section .section-header h4 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .section-context:hover {
@@ -1418,7 +1446,7 @@
   z-index: 1001;
   width: min(800px, 90vw);
   max-height: 85vh;
-  background: var(--card-bg);
+  background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: var(--shadow-lg);

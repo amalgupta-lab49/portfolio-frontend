@@ -1,0 +1,240 @@
+metadata:
+  id: portfolio
+  name: Portfolio Management
+  description: AI-powered portfolio management and analysis framework
+  icon: 📊
+  version: "1.0.0"
+
+ui:
+  sections:
+    - id: briefing
+      label: Morning Portfolio Briefing
+      component: PortfolioSection
+      props:
+        type: briefing
+      visible: true
+      order: 1
+    - id: risk
+      label: Risk Alerts
+      component: PortfolioSection
+      props:
+        type: risk
+      visible: true
+      order: 2
+    - id: actions
+      label: Today's Actions
+      component: PortfolioSection
+      props:
+        type: actions
+      visible: true
+      order: 3
+    - id: performance
+      label: Performance Metrics
+      component: PortfolioSection
+      props:
+        type: performance
+      visible: true
+      order: 4
+    - id: thesis
+      label: Thesis Decay
+      component: PortfolioSection
+      props:
+        type: thesis
+      visible: true
+      order: 5
+    - id: bias
+      label: Bias Sentinel
+      component: PortfolioSection
+      props:
+        type: bias
+      visible: true
+      order: 6
+  tabs:
+    - id: overview
+      label: Overview
+      sections:
+        - briefing
+        - risk
+        - actions
+        - performance
+      default: true
+    - id: thesis
+      label: Thesis Analysis
+      sections:
+        - thesis
+      icon: 📈
+    - id: bias
+      label: Bias Sentinel
+      sections:
+        - bias
+      icon: 🛡️
+    - id: decision
+      label: Decision Trace
+      sections: []
+      icon: 🔍
+      special: decisionTrace
+
+api:
+  baseUrl: ""
+  endpoints:
+    getCompanyOverview: "/eq/getCompanyOverview"
+    getTopGainersAndLosers: "/eq/getTopGainersAndLosers"
+    getMarketSentiment: "/eq/getMarketSentiment"
+    getPortfolioData: "/portfolio/data"
+    getRiskMetrics: "/portfolio/risk"
+    getHoldings: "/portfolio/holdings"
+  headers:
+    "Content-Type": "application/json"
+  timeout: 30000
+
+workflow:
+  steps:
+    - id: external
+      label: External Sources
+      summary: Market intelligence, news feeds, regulatory filings, or any non-proprietary data leveraged during the audit.
+      color: "#38bdf8"
+      icon: globe
+    - id: internal
+      label: Internal Sources
+      summary: Proprietary research, portfolio documents, or internal knowledge bases referenced for the analysis.
+      color: "#0ea5e9"
+      icon: database
+    - id: tooling
+      label: Tooling Call
+      summary: Execution or analytics tools that were invoked (risk engines, optimizers, scenario generators, etc.).
+      color: "#f97316"
+      icon: wrench
+    - id: agent
+      label: AI Agent Call
+      summary: Autonomous agent participation or hand-offs between orchestrated AI agents.
+      color: "#a855f7"
+      icon: robot
+    - id: llm
+      label: LLM Interaction
+      summary: Large language model prompt/response exchange that provided reasoning or narrative steps.
+      color: "#6366f1"
+      icon: chat
+    - id: rag
+      label: RAG (Context Enhancement)
+      summary: Retrieval-augmented context generation, blending sources that informed the LLM.
+      color: "#14b8a6"
+      icon: layers
+    - id: response
+      label: Response Generation
+      summary: Final synthesized response, recommendation, or action emitted by the workflow.
+      color: "#4ade80"
+      icon: check-circle
+  templates:
+    - id: summaryGeneration
+      label: Summary Generation
+      description: Used for narrative briefings such as Morning Portfolio Briefing and other summarization use cases.
+      sections:
+        - Morning Portfolio Briefing
+      sequence:
+        - external
+        - internal
+        - rag
+        - llm
+        - response
+      fanIn:
+        - target: response
+          sources:
+            - rag
+            - llm
+      loopPatterns: []
+    - id: analytics
+      label: Analytics
+      description: Used for analytical dashboards like Risk Alerts, Today's Actions, and Performance Metrics.
+      sections:
+        - Risk Alerts
+        - Today's Actions
+        - Performance Metrics
+      sequence:
+        - external
+        - internal
+        - tooling
+        - llm
+        - rag
+        - response
+      loopPatterns:
+        - description: Iterative analytic refinement using tooling and LLM review.
+          cycle:
+            - tooling
+            - llm
+            - rag
+          maxIterations: 3
+      fanIn:
+        - target: response
+          sources:
+            - tooling
+            - llm
+            - rag
+    - id: agenticAnalytics
+      label: Agentic Analytics
+      description: Applies to Thesis Decay sub-sections and Bias Sentinel analysis where agent collaboration is involved.
+      sections:
+        - Thesis Decay
+        - Bias Sentinel
+      sequence:
+        - external
+        - internal
+        - agent
+        - tooling
+        - llm
+        - rag
+        - response
+      loopPatterns:
+        - description: Agent delegates repeated tooling probes before final synthesis.
+          cycle:
+            - agent
+            - tooling
+            - llm
+          maxIterations: 4
+        - description: LLM self-correct loop with augmented context.
+          cycle:
+            - llm
+            - rag
+          maxIterations: 2
+      fanIn:
+        - target: rag
+          sources:
+            - external
+            - internal
+            - agent
+        - target: response
+          sources:
+            - tooling
+            - llm
+            - rag
+  defaultSequence:
+    - external
+    - internal
+    - tooling
+    - agent
+    - llm
+    - rag
+    - response
+
+theme:
+  colors:
+    primary: "#2563eb"
+    secondary: "#ffffff"
+    accent: "#60a5fa"
+    background: "#f8f9fa"
+    text: "#1f2937"
+    positive: "#0ea5e9"
+    negative: "#ef4444"
+  fonts:
+    primary: "system-ui, -apple-system, sans-serif"
+    secondary: "system-ui, -apple-system, sans-serif"
+  spacing:
+    xs: "0.25rem"
+    sm: "0.5rem"
+    md: "1rem"
+    lg: "1.5rem"
+    xl: "2rem"
+  borderRadius:
+    sm: "4px"
+    md: "8px"
+    lg: "12px"
+

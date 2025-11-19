@@ -1,12 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import './Dashboard.css';
-import { useDomain } from '../hooks/useDomain';
-import {
-  convertWorkflowConfigToFlowReference,
-  createFallbackFlowReference,
-  getStepCategoriesFromWorkflow,
-} from './DecisionTrace.utils';
 
 const MAX_DRAFTS = 3;
 const DB_NAME = 'decisionTraceDB';
@@ -522,13 +516,50 @@ const buildFlowFromTemplate = (
 };
 
 function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditTraceConsumed }) {
-  // Get domain configuration - useDomain doesn't throw, returns null if not available
-  const { config: domainConfig } = useDomain();
-
-  // Get step categories from domain workflow config
-  const stepCategories = useMemo(() => {
-    return getStepCategoriesFromWorkflow(domainConfig?.workflow);
-  }, [domainConfig?.workflow]);
+  const stepCategories = [
+    {
+      id: 'external',
+      icon: '🌐',
+      label: 'External Sources',
+      description: 'API – Market Intelligence, News, Blogs'
+    },
+    {
+      id: 'internal',
+      icon: '🏢',
+      label: 'Internal Sources',
+      description: 'API – Prop Research, Documents, SharePoint'
+    },
+    {
+      id: 'tooling',
+      icon: '🛠️',
+      label: 'Tooling Call',
+      description: 'Execution & analytics tooling invocations'
+    },
+    {
+      id: 'agent',
+      icon: '🤖',
+      label: 'AI Agent Call',
+      description: 'Autonomous agent workflow steps'
+    },
+    {
+      id: 'llm',
+      icon: '🧠',
+      label: 'LLM Interaction',
+      description: 'Direct conversational or prompt-driven calls'
+    },
+    {
+      id: 'rag',
+      icon: '📚',
+      label: 'RAG (Context Enhancement)',
+      description: 'Retrieval augmented context assembly'
+    },
+    {
+      id: 'response',
+      icon: '✍️',
+      label: 'Response Generation',
+      description: 'Narrative & output synthesis'
+    }
+  ];
 
   const [expandedCategories, setExpandedCategories] = useState(() =>
     stepCategories.reduce((acc, cat) => {
@@ -546,15 +577,7 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
   const [draggingCategoryId, setDraggingCategoryId] = useState(null);
   const [isCanvasDragActive, setIsCanvasDragActive] = useState(false);
   const [draggingStepId, setDraggingStepId] = useState(null);
-  // Initialize flow reference from domain config or fallback
-  const initialFlowReference = useMemo(() => {
-    if (domainConfig?.workflow) {
-      return convertWorkflowConfigToFlowReference(domainConfig.workflow);
-    }
-    return createFallbackFlowReference();
-  }, [domainConfig?.workflow]);
-
-  const [flowReference, setFlowReference] = useState(initialFlowReference);
+  const [flowReference, setFlowReference] = useState(FALLBACK_FLOW_REFERENCE);
   const [areDraftsLoaded, setAreDraftsLoaded] = useState(false);
   const [nodeContextMenu, setNodeContextMenu] = useState(null); // { stepId, x, y }
   const [nodePropertiesModal, setNodePropertiesModal] = useState(null); // { step }
@@ -567,7 +590,7 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
   const draftsLoadedRef = useRef(false);
   const lastAuditRequestIdRef = useRef(null);
   const hasPersistedSessionRef = useRef(false);
-  const flowReferenceRef = useRef(initialFlowReference);
+  const flowReferenceRef = useRef(FALLBACK_FLOW_REFERENCE);
   const tracesRef = useRef([]);
   const pendingAuditRequestRef = useRef(null);
 
@@ -575,56 +598,43 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
     tracesRef.current = traces;
   }, [traces]);
 
-  // Load flow reference from domain config
   useEffect(() => {
-    if (domainConfig?.workflow) {
-      const normalized = convertWorkflowConfigToFlowReference(domainConfig.workflow);
-      flowReferenceRef.current = normalized;
-      setFlowReference(normalized);
-    } else {
-      // Fallback: try to load from JSON file if domain config not available
-      let isCancelled = false;
+    let isCancelled = false;
 
-      const loadFlowReference = async () => {
-        try {
-          const response = await fetch('/decision-trace-flow.json', { cache: 'no-store' });
-          if (!response.ok) {
-            throw new Error(`Unexpected status ${response.status}`);
-          }
-          const json = await response.json();
-          const normalized = normalizeFlowReference(json);
-          if (!isCancelled) {
-            flowReferenceRef.current = normalized;
-            setFlowReference(normalized);
-          }
-        } catch (error) {
-          console.warn('Failed to load decision trace flow reference. Using fallback.', error);
-          const fallback = createFallbackFlowReference();
-          flowReferenceRef.current = fallback;
-          setFlowReference(fallback);
+    const loadFlowReference = async () => {
+      try {
+        const response = await fetch('/decision-trace-flow.json', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`Unexpected status ${response.status}`);
         }
-      };
+        const json = await response.json();
+        const normalized = normalizeFlowReference(json);
+        if (!isCancelled) {
+          flowReferenceRef.current = normalized;
+          setFlowReference(normalized);
+        }
+      } catch (error) {
+        console.warn('Failed to load decision trace flow reference. Using fallback.', error);
+      }
+    };
 
-      loadFlowReference();
+    loadFlowReference();
 
-      return () => {
-        isCancelled = true;
-      };
-    }
-  }, [domainConfig?.workflow]);
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
-  const fallbackFlowRef = createFallbackFlowReference();
-  const stepsById = flowReference?.stepsById || fallbackFlowRef.stepsById;
-  const templatesById = flowReference?.templatesById || fallbackFlowRef.templatesById;
+  const stepsById = flowReference?.stepsById || FALLBACK_FLOW_REFERENCE.stepsById;
+  const templatesById = flowReference?.templatesById || FALLBACK_FLOW_REFERENCE.templatesById;
   const defaultTemplate =
     templatesById?.[flowReference?.defaultTemplateId] ||
     templatesById?.default ||
-    fallbackFlowRef.templatesById.default;
+    FALLBACK_FLOW_REFERENCE.templatesById.default;
 
   const resolveTemplateForEntry = useCallback(
     ({ sectionLabel, entry }) => {
-      const fallbackRef = createFallbackFlowReference();
-      const reference = flowReferenceRef.current || flowReference || fallbackRef;
+      const reference = flowReferenceRef.current || flowReference || FALLBACK_FLOW_REFERENCE;
       const templates = reference.templates || [];
       const referenceTemplatesById = reference.templatesById || {};
       const normalizedSection = normalizeKey(sectionLabel);
@@ -679,12 +689,11 @@ function DecisionTrace({ showChatbot, renderChatbot, auditTraceRequest, onAuditT
         return referenceTemplatesById.summaryGeneration;
       }
 
-      const fallbackTemplateRef = createFallbackFlowReference();
       return (
         referenceTemplatesById[reference.defaultTemplateId] ||
         referenceTemplatesById.default ||
         reference.templates[0] ||
-        fallbackTemplateRef.templates[0]
+        FALLBACK_FLOW_REFERENCE.templates[0]
       );
     },
     [flowReference]
