@@ -1,11 +1,11 @@
 /**
- * Portfolio Dashboard Component
- * Portfolio-specific dashboard wrapper
+ * Architect Portfolio Dashboard
+ * Architecture-specific portfolio view with technical focus
  */
 import React from 'react';
-import { PortfolioSection } from './PortfolioSection';
+import { PortfolioSection } from '../../PortfolioSection';
 
-export interface PortfolioDashboardProps {
+export interface ArchitectPortfolioDashboardProps {
   sections: Array<{
     id: string;
     type: string;
@@ -15,18 +15,20 @@ export interface PortfolioDashboardProps {
   onAction?: (action: string, payload?: any) => void;
   showReasoningProps?: any;
   role?: string;
-  persona?: string;
 }
 
-export function PortfolioDashboard({
+export function ArchitectPortfolioDashboard({
   sections,
   onAction,
   showReasoningProps,
-  role,
-  persona,
-}: PortfolioDashboardProps) {
+  role = 'Architect',
+}: ArchitectPortfolioDashboardProps) {
   return (
-    <div className="portfolio-dashboard">
+    <div className="portfolio-dashboard architect-dashboard">
+      <div className="dashboard-header">
+        <h2>{role} Dashboard</h2>
+        <p className="dashboard-subtitle">Technical portfolio analysis and system architecture insights</p>
+      </div>
       {sections.map((section) => (
         <PortfolioSection
           key={section.id}

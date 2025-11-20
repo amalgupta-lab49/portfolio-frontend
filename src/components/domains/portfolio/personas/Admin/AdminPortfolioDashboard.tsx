@@ -1,11 +1,11 @@
 /**
- * Portfolio Dashboard Component
- * Portfolio-specific dashboard wrapper
+ * Admin Portfolio Dashboard
+ * Administrative portfolio view with full access
  */
 import React from 'react';
-import { PortfolioSection } from './PortfolioSection';
+import { PortfolioSection } from '../../PortfolioSection';
 
-export interface PortfolioDashboardProps {
+export interface AdminPortfolioDashboardProps {
   sections: Array<{
     id: string;
     type: string;
@@ -15,18 +15,20 @@ export interface PortfolioDashboardProps {
   onAction?: (action: string, payload?: any) => void;
   showReasoningProps?: any;
   role?: string;
-  persona?: string;
 }
 
-export function PortfolioDashboard({
+export function AdminPortfolioDashboard({
   sections,
   onAction,
   showReasoningProps,
-  role,
-  persona,
-}: PortfolioDashboardProps) {
+  role = 'Admin',
+}: AdminPortfolioDashboardProps) {
   return (
-    <div className="portfolio-dashboard">
+    <div className="portfolio-dashboard admin-dashboard">
+      <div className="dashboard-header">
+        <h2>{role} Dashboard</h2>
+        <p className="dashboard-subtitle">Administrative portfolio management with full system access</p>
+      </div>
       {sections.map((section) => (
         <PortfolioSection
           key={section.id}

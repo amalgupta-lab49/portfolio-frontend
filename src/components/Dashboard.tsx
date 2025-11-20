@@ -5,10 +5,12 @@
 import React, { useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { useDomain } from '../hooks/useDomain';
+import { usePersonaTabs } from '../hooks/usePersonaTabs';
+import { usePersona } from '../contexts/PersonaContext';
 import { TabNavigation } from './common/TabNavigation';
 import { SectionRenderer } from './common/SectionRenderer';
+import { UserProfile } from './common/UserProfile';
 import DecisionTrace from './DecisionTrace';
-import { OverviewDashboardHeader } from './domains/portfolio/OverviewDashboardHeader';
 import ShowReasoning from './ShowReasoning';
 
 export interface DashboardProps {
@@ -31,10 +33,16 @@ export function Dashboard({
   onSetChatMessages,
 }: DashboardProps) {
   const { config: domainConfig, isLoading, error } = useDomain();
+  const personaTabs = usePersonaTabs();
+  const { hasCapability } = usePersona();
 
   // All hooks must be called unconditionally before any early returns
-  const sections = domainConfig?.ui.sections || [];
-  const defaultTabId = domainConfig?.ui.tabs?.find((tab) => tab.default)?.id || domainConfig?.ui.tabs?.[0]?.id || '';
+  const sections = useMemo(() => domainConfig?.ui.sections || [], [domainConfig?.ui.sections]);
+  // Use persona-based tabs instead of domain config tabs
+  const tabs = useMemo(() => 
+    personaTabs.length > 0 ? personaTabs : (domainConfig?.ui.tabs || []),
+    [personaTabs, domainConfig?.ui.tabs]
+  );
   const [activeTabId, setActiveTabId] = useState<string>('');
   const [showThinkingPopover, setShowThinkingPopover] = useState<string | null>(null);
   const [showHoldingsPopup, setShowHoldingsPopup] = useState(false);
@@ -512,11 +520,9 @@ export function Dashboard({
     });
     
     // Switch to Decision Trace tab
-    if (domainConfig?.ui.tabs) {
-      const decisionTab = domainConfig.ui.tabs.find(tab => tab.special === 'decisionTrace');
-      if (decisionTab) {
-        setActiveTabId(decisionTab.id);
-      }
+    const decisionTab = tabs.find(tab => tab.special === 'decisionTrace');
+    if (decisionTab) {
+      setActiveTabId(decisionTab.id);
     }
   };
 
@@ -639,20 +645,20 @@ export function Dashboard({
     onAuditTrace: handleAuditTrace,
   };
 
-  // Update activeTabId when domainConfig loads
+  // Update activeTabId when tabs load
   React.useEffect(() => {
-    if (domainConfig?.ui.tabs && !activeTabId) {
-      const defaultTab = domainConfig.ui.tabs.find((tab) => tab.default) || domainConfig.ui.tabs[0];
+    if (tabs.length > 0 && !activeTabId) {
+      const defaultTab = tabs.find((tab) => tab.default) || tabs[0];
       if (defaultTab) {
         setActiveTabId(defaultTab.id);
       }
     }
-  }, [domainConfig?.ui.tabs, activeTabId]);
+  }, [tabs, activeTabId]);
 
   const activeTab = useMemo(() => {
-    if (!domainConfig?.ui.tabs || !activeTabId) return undefined;
-    return domainConfig.ui.tabs.find((tab) => tab.id === activeTabId);
-  }, [activeTabId, domainConfig?.ui.tabs]);
+    if (!tabs.length || !activeTabId) return undefined;
+    return tabs.find((tab) => tab.id === activeTabId);
+  }, [activeTabId, tabs]);
 
   const visibleSections = useMemo(() => {
     if (!activeTabId || !activeTab) {
@@ -664,13 +670,13 @@ export function Dashboard({
   // Debug logging - must be before early returns
   React.useEffect(() => {
     console.log('Dashboard render:', {
-      tabs: domainConfig?.ui.tabs,
+      tabs: tabs,
       activeTabId,
       activeTab,
       visibleSections: visibleSections.map(s => s.id),
       sectionsCount: sections.length
     });
-  }, [domainConfig?.ui.tabs, activeTabId, activeTab, visibleSections, sections.length]);
+  }, [tabs, activeTabId, activeTab, visibleSections, sections.length]);
 
   // Show loading state while domain is being loaded
   if (isLoading) {
@@ -704,21 +710,26 @@ export function Dashboard({
   return (
     <div className="dashboard">
       <div className="dashboard-header">
-        <h1>{domainConfig.metadata.name}</h1>
-        {domainConfig.metadata.description && (
-          <p className="dashboard-description">{domainConfig.metadata.description}</p>
-        )}
+        <div className="dashboard-header-content">
+          <div className="dashboard-header-title">
+            <h1>{domainConfig.metadata.name}</h1>
+            {domainConfig.metadata.description && (
+              <p className="dashboard-description">{domainConfig.metadata.description}</p>
+            )}
+          </div>
+          <UserProfile userName="John Doe" />
+        </div>
       </div>
 
-      {domainConfig.ui.tabs && domainConfig.ui.tabs.length > 0 ? (
+      {tabs && tabs.length > 0 ? (
         <>
           <TabNavigation
-            tabs={domainConfig.ui.tabs}
+            tabs={tabs}
             activeTabId={activeTabId}
             onTabChange={setActiveTabId}
           />
-          {/* Show DecisionTrace for Decision Trace tab */}
-          {activeTab?.special === 'decisionTrace' ? (
+          {/* Show DecisionTrace for Decision Trace tab - only if user has capability */}
+          {activeTab?.special === 'decisionTrace' && hasCapability('canViewAuditLogs') ? (
             <DecisionTrace
               showChatbot={effectiveShowChatbot}
               renderChatbot={effectiveRenderChatbot}
