@@ -55,29 +55,49 @@ export class PersonaTabService {
       
       // Update label based on persona and role (Portfolio only for Business-PM)
       overviewTab.label = this.getTabLabelForPersona(userPersona, 'overview', userRole);
+      // Remove icon
+      delete overviewTab.icon;
       tabs.push(overviewTab);
-    }
-
-    // Decision Trace tab - only for Architect role (or any role with canViewAuditLogs)
-    if (capabilities.canViewAuditLogs && userRole === 'Architect') {
-      const decisionTab = baseTabs.find(tab => tab.special === 'decisionTrace') || {
-        id: 'decision',
-        label: 'Decision Trace',
-        sections: [],
-        icon: '🔍',
-        special: 'decisionTrace' as const
-      };
-      tabs.push(decisionTab);
     }
 
     // Add other base tabs that are not overview or decision trace
     baseTabs.forEach(tab => {
       if (tab.id !== 'overview' && tab.special !== 'decisionTrace') {
-        // Check if tab should be visible based on capabilities
-        if (this.shouldShowTab(tab, capabilities)) {
-          tabs.push(tab);
+        // Thesis Analysis and Bias Sentinel tabs are only for Business-PM
+        const isThesisOrBias = tab.id === 'thesis' || tab.id === 'bias';
+        const isBusinessPM = userRole === 'Business' && userPersona === 'PM';
+        
+        if (isThesisOrBias) {
+          // Only show these tabs for Business-PM role
+          if (isBusinessPM) {
+            // Check if tab should be visible based on capabilities
+            if (this.shouldShowTab(tab, capabilities)) {
+              // Remove icon
+              const tabWithoutIcon = { ...tab };
+              delete tabWithoutIcon.icon;
+              tabs.push(tabWithoutIcon);
+            }
+          }
+          // Skip these tabs for all other roles/personas - explicitly do not add them
+        } else {
+          // For all other tabs, check if tab should be visible based on capabilities
+          if (this.shouldShowTab(tab, capabilities)) {
+            // Remove icon
+            const tabWithoutIcon = { ...tab };
+            delete tabWithoutIcon.icon;
+            tabs.push(tabWithoutIcon);
+          }
         }
       }
+    });
+    
+    // Debug logging
+    console.log('PersonaTabService - Tab filtering:', {
+      userRole,
+      userPersona,
+      isBusinessPM: userRole === 'Business' && userPersona === 'PM',
+      filteredTabs: tabs.map(t => t.id),
+      baseTabs: baseTabs.map(t => t.id)
     });
 
     // Add persona-specific tabs based on configured agents
@@ -86,11 +106,24 @@ export class PersonaTabService {
         tabs.push({
           id: `agent-${agent.id}`,
           label: agent.name,
-          sections: agent.insights,
-          icon: agent.icon || '🤖'
+          sections: agent.insights
+          // No icon added
         });
       }
     });
+
+    // Decision Trace tab - always last, only for Architect role (or any role with canViewAuditLogs)
+    if (capabilities.canViewAuditLogs && userRole === 'Architect') {
+      const decisionTab = baseTabs.find(tab => tab.special === 'decisionTrace') || {
+        id: 'decision',
+        label: 'Decision Trace',
+        sections: [],
+        special: 'decisionTrace' as const
+      };
+      // Remove icon
+      delete decisionTab.icon;
+      tabs.push(decisionTab);
+    }
 
     return tabs;
   }

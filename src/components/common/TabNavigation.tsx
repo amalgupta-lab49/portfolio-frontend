@@ -27,7 +27,6 @@ export function TabNavigation({
           aria-selected={activeTabId === tab.id}
           type="button"
         >
-          {tab.icon && <span className="tab-icon">{tab.icon}</span>}
           <span className="tab-label">{tab.label}</span>
         </button>
       ))}
