@@ -1,0 +1,9 @@
+{
+  "rolePersonaMapping": {
+    "Admin": ["Admin"],
+    "Architect": ["CTO", "Architect", "Developer", "Platform"],
+    "Business": ["PM", "Analyst", "Trader"],
+    "Viewer": ["Auditor", "RegulatorReadOnly"]
+  }
+}
+

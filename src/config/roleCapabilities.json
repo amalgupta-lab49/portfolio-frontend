@@ -1,0 +1,49 @@
+{
+  "roleCapabilities": {
+    "Admin": {
+      "canCreateAgents": true,
+      "canEditOwnAgents": true,
+      "canEditAllAgents": true,
+      "canRunAgents": true,
+      "canViewDashboards": true,
+      "canConfigureDataSources": true,
+      "canManageUsersAndRoles": true,
+      "canPublishToOrgCatalog": true,
+      "canViewAuditLogs": true
+    },
+    "Architect": {
+      "canCreateAgents": true,
+      "canEditOwnAgents": true,
+      "canEditAllAgents": true,
+      "canRunAgents": true,
+      "canViewDashboards": true,
+      "canConfigureDataSources": true,
+      "canManageUsersAndRoles": false,
+      "canPublishToOrgCatalog": true,
+      "canViewAuditLogs": true
+    },
+    "Business": {
+      "canCreateAgents": true,
+      "canEditOwnAgents": true,
+      "canEditAllAgents": false,
+      "canRunAgents": true,
+      "canViewDashboards": true,
+      "canConfigureDataSources": false,
+      "canManageUsersAndRoles": false,
+      "canPublishToOrgCatalog": true,
+      "canViewAuditLogs": false
+    },
+    "Viewer": {
+      "canCreateAgents": false,
+      "canEditOwnAgents": false,
+      "canEditAllAgents": false,
+      "canRunAgents": false,
+      "canViewDashboards": true,
+      "canConfigureDataSources": false,
+      "canManageUsersAndRoles": false,
+      "canPublishToOrgCatalog": false,
+      "canViewAuditLogs": false
+    }
+  }
+}
+
