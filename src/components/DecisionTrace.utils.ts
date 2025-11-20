@@ -152,43 +152,43 @@ export function getStepCategoriesFromWorkflow(workflowConfig: WorkflowConfig | u
         id: 'external',
         icon: '🌐',
         label: 'External Sources',
-        description: 'External data sources',
+        description: 'API – Market Intelligence, News, Blogs',
       },
       {
         id: 'internal',
         icon: '🏢',
         label: 'Internal Sources',
-        description: 'Internal data sources',
+        description: 'API – Prop Research, Documents, SharePoint',
       },
       {
         id: 'tooling',
         icon: '🛠️',
         label: 'Tooling Call',
-        description: 'Tooling invocations',
+        description: 'Execution & analytics tooling invocations',
       },
       {
         id: 'agent',
         icon: '🤖',
         label: 'AI Agent Call',
-        description: 'AI agent interactions',
+        description: 'Autonomous agent workflow steps',
       },
       {
         id: 'llm',
         icon: '🧠',
         label: 'LLM Interaction',
-        description: 'LLM exchanges',
+        description: 'Direct conversational or prompt-driven calls',
       },
       {
         id: 'rag',
         icon: '📚',
         label: 'RAG (Context Enhancement)',
-        description: 'RAG context assembly',
+        description: 'Retrieval augmented context assembly',
       },
       {
         id: 'response',
         icon: '✍️',
         label: 'Response Generation',
-        description: 'Response synthesis',
+        description: 'Narrative & output synthesis',
       },
     ];
   }
@@ -203,11 +203,49 @@ export function getStepCategoriesFromWorkflow(workflowConfig: WorkflowConfig | u
     response: '✍️',
   };
 
-  return workflowConfig.steps.map((step) => ({
-    id: step.id,
-    icon: step.icon || iconMap[step.id] || '⬚',
-    label: step.label,
-    description: step.summary || '',
-  }));
+  // Map icon names to emojis (for YAML configs that use icon names)
+  const iconNameToEmoji: Record<string, string> = {
+    globe: '🌐',
+    database: '🏢',
+    wrench: '🛠️',
+    tool: '🛠️',
+    robot: '🤖',
+    agent: '🤖',
+    chat: '🧠',
+    brain: '🧠',
+    llm: '🧠',
+    layers: '📚',
+    book: '📚',
+    rag: '📚',
+    'check-circle': '✍️',
+    check: '✍️',
+    response: '✍️',
+    write: '✍️',
+  };
+
+  return workflowConfig.steps.map((step) => {
+    // If step.icon is already an emoji (contains non-ASCII), use it directly
+    // Otherwise, try to map it from iconNameToEmoji, then iconMap, then fallback
+    let icon = '⬚';
+    if (step.icon) {
+      // Check if it's already an emoji (contains characters outside ASCII)
+      if (/[^\x00-\x7F]/.test(step.icon)) {
+        icon = step.icon;
+      } else {
+        // It's an icon name, try to map it
+        icon = iconNameToEmoji[step.icon.toLowerCase()] || iconMap[step.id] || '⬚';
+      }
+    } else {
+      // No icon specified, use the default for this step type
+      icon = iconMap[step.id] || '⬚';
+    }
+
+    return {
+      id: step.id,
+      icon,
+      label: step.label,
+      description: step.summary || '',
+    };
+  });
 }
 
