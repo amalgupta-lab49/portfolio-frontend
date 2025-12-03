@@ -81,4 +81,35 @@ module.exports = function(app) {
       }
     })
   );
+
+  // Proxy for WebSocket chat endpoint
+  const chatProxy = createProxyMiddleware({
+    target: 'http://127.0.0.1:8000',
+    changeOrigin: true,
+    ws: true, // Enable WebSocket proxying
+    logLevel: 'debug',
+    onError: (err, req, res) => {
+      console.error('=== CHAT PROXY ERROR ===');
+      console.error('Error:', err.message);
+      console.error('Error code:', err.code);
+      console.error('Request URL:', req.url);
+      if (!res.headersSent) {
+        res.status(502).json({ 
+          error: 'Bad Gateway - chat server may not be running',
+          details: err.message
+        });
+      }
+    },
+    onProxyReq: (proxyReq, req, res) => {
+      console.log('=== CHAT PROXY REQUEST ===');
+      console.log('Request URL:', req.url);
+      console.log('Is WebSocket upgrade:', req.headers.upgrade === 'websocket');
+    },
+    onProxyReqWs: (proxyReq, req, socket) => {
+      console.log('=== CHAT WEBSOCKET PROXY REQUEST ===');
+      console.log('WebSocket upgrade request for:', req.url);
+    }
+  });
+
+  app.use('/chat', chatProxy);
 }; 

@@ -196,6 +196,8 @@ function Dashboard() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatExpanded, setIsChatExpanded] = useState(false);
+  const [wsConnection, setWsConnection] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
   const [showHoldingsPopup, setShowHoldingsPopup] = useState(false);
   const [expandedHoldingId, setExpandedHoldingId] = useState(null);
   const [redFlagTooltip, setRedFlagTooltip] = useState(null); // { holdingId: number, flagIndex: number, x: number, y: number }
@@ -986,17 +988,171 @@ function Dashboard() {
     }
   }, [isAgentMode, showChatbot]);
 
+  // Initialize WebSocket connection
+  const initializeWebSocket = useCallback(() => {
+    // Close existing connection if any
+    setWsConnection(prev => {
+      if (prev) {
+        prev.close();
+      }
+      return null;
+    });
+
+    try {
+      // Try direct connection first (bypass proxy for WebSocket)
+      // If that fails, we can fall back to proxy
+      const wsUrl = 'ws://localhost:8000/chat/ws';
+      console.log('Attempting WebSocket connection to:', wsUrl);
+      const ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        console.log('✅ WebSocket connected successfully to', wsUrl);
+        setWsConnected(true);
+        setWsConnection(ws);
+        // Clear any previous error messages
+        setChatMessages(prev => {
+          const filtered = prev.filter(msg => 
+            !msg.content.includes('Unable to connect') && 
+            !msg.content.includes('Error connecting')
+          );
+          if (filtered.length === 0 || filtered[filtered.length - 1].role !== 'assistant') {
+            return [...filtered, { 
+              role: 'assistant', 
+              content: 'Connected to AI Agent. How can I help you?' 
+            }];
+          }
+          return filtered;
+        });
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data);
+          
+          // Handle different message types
+          if (data.type === 'message' || data.message) {
+            const messageContent = data.message || data.content || data.text || JSON.stringify(data);
+            setChatMessages(prev => [...prev, {
+              role: 'assistant',
+              content: messageContent
+            }]);
+          } else if (data.content) {
+            setChatMessages(prev => [...prev, {
+              role: 'assistant',
+              content: data.content
+            }]);
+          } else {
+            // Fallback: use the raw data
+            setChatMessages(prev => [...prev, {
+              role: 'assistant',
+              content: typeof data === 'string' ? data : JSON.stringify(data)
+            }]);
+          }
+        } catch (err) {
+          console.error('Error parsing WebSocket message:', err);
+          // If not JSON, treat as plain text
+          setChatMessages(prev => [...prev, {
+            role: 'assistant',
+            content: event.data
+          }]);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        console.error('WebSocket URL attempted:', wsUrl);
+        setWsConnected(false);
+        // Don't add error message here - let onclose handle it with more details
+      };
+
+      ws.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
+        console.log('Close code:', event.code);
+        console.log('Close reason:', event.reason || 'No reason provided');
+        setWsConnected(false);
+        setWsConnection(null);
+        
+        // Only show error message if it wasn't a normal closure
+        if (event.code !== 1000) {
+          let errorMessage = 'Unable to connect to chat server. ';
+          if (event.code === 1006) {
+            errorMessage += 'The connection was closed abnormally. Please check if the backend server is running on port 8000.';
+          } else if (event.code === 1001) {
+            errorMessage += 'The server is going away.';
+          } else {
+            errorMessage += `Connection closed with code ${event.code}. Please check if the backend server is running on port 8000.`;
+          }
+          
+          setChatMessages(prev => {
+            // Only add error message if it's not already the last message
+            const lastMessage = prev[prev.length - 1];
+            if (!lastMessage || lastMessage.content !== errorMessage) {
+              return [...prev, { role: 'assistant', content: errorMessage }];
+            }
+            return prev;
+          });
+        }
+      };
+
+      setWsConnection(ws);
+    } catch (error) {
+      console.error('Failed to create WebSocket connection:', error);
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Failed to connect to chat server. Please check your connection.'
+      }]);
+    }
+  }, []);
+
+  // Clean up WebSocket on unmount or when chatbot closes
+  useEffect(() => {
+    return () => {
+      if (wsConnection) {
+        wsConnection.close();
+      }
+    };
+  }, [wsConnection]);
+
+  // Initialize WebSocket when chatbot opens
+  useEffect(() => {
+    if (showChatbot && isAgentMode && !wsConnection) {
+      initializeWebSocket();
+    }
+  }, [showChatbot, isAgentMode, wsConnection, initializeWebSocket]);
+
   const handleSendMessage = () => {
-    if (chatInput.trim()) {
-      setChatMessages([...chatMessages, { role: 'user', content: chatInput }]);
-      // Simulate agent response
-      setTimeout(() => {
-        setChatMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: 'I understand your question about this analysis. Let me help you explore this further...' 
+    if (!chatInput.trim()) return;
+
+    const message = chatInput.trim();
+    
+    // Add user message to chat
+    setChatMessages(prev => [...prev, { role: 'user', content: message }]);
+    setChatInput('');
+
+    // Send message via WebSocket if connected
+    if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+      try {
+        // Send message as JSON
+        wsConnection.send(JSON.stringify({
+          type: 'message',
+          content: message
+        }));
+        console.log('Sent message via WebSocket:', message);
+      } catch (error) {
+        console.error('Error sending WebSocket message:', error);
+        setChatMessages(prev => [...prev, {
+          role: 'assistant',
+          content: 'Error sending message. Please try again.'
         }]);
-      }, 1000);
-      setChatInput('');
+      }
+    } else {
+      // If WebSocket is not connected, try to initialize it
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Connecting to chat server... Please wait and try sending your message again.'
+      }]);
+      initializeWebSocket();
     }
   };
 
@@ -1010,6 +1166,12 @@ function Dashboard() {
   const handleCloseChatbot = () => {
     setShowChatbot(false);
     setIsChatExpanded(false);
+    // Close WebSocket connection when closing chatbot
+    if (wsConnection) {
+      wsConnection.close();
+      setWsConnection(null);
+      setWsConnected(false);
+    }
   };
 
   const handleShowReasoning = (section) => {
@@ -1032,6 +1194,8 @@ function Dashboard() {
     setChatInput(content);
     setShowChatbot(true);
     setChatMessages([]);
+    // Initialize WebSocket connection when opening chatbot
+    initializeWebSocket();
   };
 
   const handleReviewClick = () => {
@@ -1261,6 +1425,11 @@ function Dashboard() {
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
             <span>AI Agent</span>
+            {wsConnected ? (
+              <span className="chatbot-status connected" title="Connected">●</span>
+            ) : (
+              <span className="chatbot-status disconnected" title="Disconnected">○</span>
+            )}
           </div>
           <button className="chatbot-close" onClick={handleCloseChatbot}>
             ✕
