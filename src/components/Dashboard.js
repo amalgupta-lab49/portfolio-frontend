@@ -182,8 +182,9 @@ function Dashboard() {
     ]
   });
   const [sentimentTooltip, setSentimentTooltip] = useState(null); // { sector: string, baselineVector: array, x: number, y: number }
-  const [sentimentDriftTooltip, setSentimentDriftTooltip] = useState(null); // { sector: string, type: 'internal' | 'external', baselineVector: array, todayVector: array, x: number, y: number, positionAbove: boolean }
+  const [sentimentDriftTooltip, setSentimentDriftTooltip] = useState(null); // { sector: string, type: 'internal' | 'external', baselineVector: array, todayVector: array, loading: boolean, x: number, y: number, positionAbove: boolean }
   const [selectedAlphaDecayRow, setSelectedAlphaDecayRow] = useState(null); // sector name or null
+  const [sectorSentimentData, setSectorSentimentData] = useState({}); // { [sector]: { baselineVector: array, loading: boolean, error: string } }
   const [isThesisPanelExpanded, setIsThesisPanelExpanded] = useState(true); // Collapsible panel state
   const [isPortfolioPanelExpanded, setIsPortfolioPanelExpanded] = useState(true); // Portfolio panel collapse state
   const [showThinkingPopover, setShowThinkingPopover] = useState(null); // null or section name
@@ -1086,7 +1087,7 @@ function Dashboard() {
     }
   }, [redFlagTooltip]);
 
-  const handleSentimentDriftClick = (e, sector, type, baselineVector, todayVector) => {
+  const handleSentimentDriftClick = async (e, sector, type, baselineVector, todayVector) => {
     e.stopPropagation();
     // Toggle tooltip if clicking the same cell
     if (sentimentDriftTooltip && sentimentDriftTooltip.sector === sector && sentimentDriftTooltip.type === type) {
@@ -1137,11 +1138,63 @@ function Dashboard() {
       tooltipX = windowWidth - halfTooltipWidth - tooltipMargin;
     }
     
+    // Use hardcoded baseline (revert to original)
+    const finalBaselineVector = baselineVector;
+    
+    // For Internal sentiment drift, fetch today (vₜ) vector from API if sector is supported
+    let finalTodayVector = todayVector;
+    const normalizedSector = sector.toLowerCase();
+    const sectorsWithAPI = ['technology', 'consumer', 'financial', 'utilities'];
+    
+    if (type === 'internal' && sectorsWithAPI.includes(normalizedSector)) {
+      console.log(`Fetching today vector for Internal sentiment drift - ${sector} sector`);
+      
+      // Check cache first
+      const cached = sectorSentimentData[normalizedSector];
+      if (cached && cached.baselineVector && !cached.loading) {
+        console.log('Using cached today vector for Internal sentiment drift:', cached.baselineVector);
+        // Use the API v0 data as today vector
+        finalTodayVector = cached.baselineVector;
+      } else {
+        // Show loading state
+        setSentimentDriftTooltip({
+          sector,
+          type,
+          baselineVector: finalBaselineVector,
+          todayVector: null, // Will show loading
+          loading: true,
+          x: tooltipX,
+          y: tooltipY,
+          positionAbove
+        });
+        
+        // Fetch the data
+        const fetchedVector = await fetchSectorSentimentData(sector);
+        
+        if (fetchedVector) {
+          // Use the API v0 data as today vector
+          finalTodayVector = fetchedVector;
+          console.log('Fetched today vector for Internal sentiment drift:', fetchedVector);
+        } else {
+          // Fetch failed, use original today vector
+          const stateForSector = sectorSentimentData[normalizedSector];
+          if (stateForSector && stateForSector.baselineVector) {
+            finalTodayVector = stateForSector.baselineVector;
+          } else {
+            // Use the provided todayVector as fallback
+            finalTodayVector = todayVector;
+            console.warn(`Failed to fetch today vector for ${sector}, using default`);
+          }
+        }
+      }
+    }
+    
     setSentimentDriftTooltip({
       sector,
       type,
-      baselineVector,
-      todayVector,
+      baselineVector: finalBaselineVector,
+      todayVector: finalTodayVector,
+      loading: false,
       x: tooltipX,
       y: tooltipY,
       positionAbove
@@ -2193,6 +2246,160 @@ function Dashboard() {
     }
   };
 
+  // Function to fetch and aggregate v0 baseline data for a sector
+  const fetchSectorSentimentData = useCallback(async (sector) => {
+    // Normalize sector name to lowercase for API call
+    const normalizedSector = sector.toLowerCase();
+    
+    // Check if data is already cached using functional state update
+    let shouldFetch = true;
+    let cachedVector = null;
+    
+    setSectorSentimentData(prev => {
+      const cached = prev[normalizedSector];
+      if (cached && cached.baselineVector && !cached.loading) {
+        cachedVector = cached.baselineVector;
+        shouldFetch = false;
+        return prev; // No state change needed
+      }
+      if (cached && cached.loading) {
+        shouldFetch = false; // Already loading, don't start another request
+        return prev;
+      }
+      // Set loading state for new fetch
+      return {
+        ...prev,
+        [normalizedSector]: { loading: true, error: null }
+      };
+    });
+
+    // Return cached data if available
+    if (cachedVector) {
+      return cachedVector;
+    }
+
+    // If already loading, return null (caller should handle this)
+    if (!shouldFetch) {
+      return null;
+    }
+
+    try {
+      const apiUrl = '/sentiment/analyze';
+      const params = { sector: normalizedSector };
+      console.log('Making API call to:', apiUrl, 'with params:', params);
+      
+      const response = await axios.get(apiUrl, {
+        params: params,
+        timeout: 10000, // 10 second timeout
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('API response received:', response.data);
+      console.log('Response status:', response.status);
+      console.log('Response structure check:', {
+        hasData: !!response.data,
+        hasSentimentMetrics: !!(response.data && response.data.sentiment_metrics),
+        sector: response.data?.sector
+      });
+
+      if (response.data && response.data.sentiment_metrics) {
+        const sentimentMetrics = response.data.sentiment_metrics;
+        const symbols = Object.keys(sentimentMetrics);
+        
+        console.log(`Found ${symbols.length} symbols in sentiment_metrics:`, symbols);
+        
+        if (symbols.length === 0) {
+          throw new Error('No sentiment metrics found for sector');
+        }
+
+        // Aggregate v0 arrays from all symbols
+        let sumSentimentValue = 0;
+        let sumPrecision = 0;
+        let sumRecall = 0;
+        let count = 0;
+
+        symbols.forEach(symbol => {
+          const metric = sentimentMetrics[symbol];
+          console.log(`Processing symbol ${symbol}:`, metric);
+          if (metric && metric.sentiment && Array.isArray(metric.sentiment.v0) && metric.sentiment.v0.length >= 3) {
+            const v0 = metric.sentiment.v0;
+            console.log(`  v0 array for ${symbol}:`, v0);
+            sumSentimentValue += v0[0]; // sentiment_value
+            sumPrecision += v0[1]; // precision
+            sumRecall += v0[2]; // recall
+            count++;
+          } else {
+            console.warn(`  Invalid v0 data for ${symbol}:`, metric?.sentiment?.v0);
+          }
+        });
+        
+        console.log(`Aggregation summary: count=${count}, sumSentimentValue=${sumSentimentValue}, sumPrecision=${sumPrecision}, sumRecall=${sumRecall}`);
+
+        if (count === 0) {
+          throw new Error('No valid v0 data found in sentiment metrics');
+        }
+
+        // Calculate averages
+        const avgSentimentValue = sumSentimentValue / count;
+        const avgPrecision = sumPrecision / count;
+        const avgRecall = sumRecall / count;
+
+        const baselineVector = [avgSentimentValue, avgPrecision, avgRecall];
+        console.log('Calculated baselineVector:', baselineVector);
+
+        // Cache the result
+        setSectorSentimentData(prev => ({
+          ...prev,
+          [normalizedSector]: {
+            baselineVector,
+            loading: false,
+            error: null
+          }
+        }));
+
+        return baselineVector;
+      } else {
+        throw new Error('Invalid response structure from sentiment API');
+      }
+    } catch (err) {
+      console.error('Error fetching sector sentiment data:', err);
+      
+      let errorMessage = 'Failed to fetch sentiment data';
+      if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check if the backend server is running on port 8000.';
+      } else if (err.response?.status === 504) {
+        errorMessage = 'Gateway timeout. The backend server at localhost:8000 may not be running or is not responding.';
+      } else if (err.response?.status) {
+        errorMessage = `Server error (${err.response.status}): ${err.response?.data?.message || err.message}`;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      console.error('Error details:', {
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        message: err.message,
+        code: err.code
+      });
+      
+      // Set error state
+      setSectorSentimentData(prev => ({
+        ...prev,
+        [normalizedSector]: {
+          ...prev[normalizedSector],
+          loading: false,
+          error: errorMessage
+        }
+      }));
+
+      // Return null to indicate failure
+      return null;
+    }
+  }, [sectorSentimentData]);
+
   const getSectorColor = (index) => {
     const colors = [
       '#6c5ce7', // Purple
@@ -2971,11 +3178,30 @@ function Dashboard() {
                               <td className="target-value">{item.targetSharpe.toFixed(2)}</td>
                               <td 
                                 className="sentiment-cell"
+                                data-sector={item.sector}
+                                data-testid={`sentiment-cell-${item.sector.toLowerCase()}`}
                                 style={{
                                   cursor: 'pointer',
                                   color: item.sentiment === 'Bullish' ? '#4caf50' : item.sentiment === 'Bearish' ? '#f44336' : '#ff9800'
                                 }}
-                                onClick={(e) => {
+                                onMouseEnter={() => {
+                                  console.log(`Mouse entered sentiment cell for ${item.sector}`);
+                                }}
+                                onClick={async (e) => {
+                                  // Very visible logging to ensure click is detected
+                                  console.log('=== SENTIMENT CELL CLICKED ===');
+                                  console.log('Event:', e);
+                                  console.log('Item:', item);
+                                  console.log('Sector:', item.sector);
+                                  console.log('Normalized sector:', item.sector.toLowerCase());
+                                  console.error('CLICK DETECTED - This should be visible!'); // Using error level for visibility
+                                  
+                                  // Alert for testing - remove after confirming click works
+                                  // alert(`Clicked on ${item.sector} sector sentiment cell`);
+                                  
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  
                                   const clickX = e.clientX;
                                   const clickY = e.clientY;
                                   const windowHeight = window.innerHeight;
@@ -2997,9 +3223,88 @@ function Dashboard() {
                                     tooltipX = windowWidth - halfTooltipWidth - 10;
                                   }
                                   
+                                  // Check if this is a sector that should fetch v0 data from API
+                                  const normalizedSector = item.sector.toLowerCase();
+                                  let baselineVector = item.baselineVector; // Default to hardcoded value
+                                  
+                                  // Sectors that should fetch data from API
+                                  const sectorsWithAPI = ['technology', 'consumer', 'financial', 'utilities'];
+                                  const shouldFetchFromAPI = sectorsWithAPI.includes(normalizedSector);
+                                  
+                                  console.log('Sentiment cell clicked:', { sector: item.sector, normalizedSector, shouldFetchFromAPI });
+                                  
+                                  if (shouldFetchFromAPI) {
+                                    console.log(`${item.sector} sector detected, fetching v0 data from API...`);
+                                    // Show tooltip immediately with loading state or cached data
+                                    const cached = sectorSentimentData[normalizedSector];
+                                    if (cached && cached.baselineVector && !cached.loading) {
+                                      console.log('Using cached baselineVector:', cached.baselineVector);
+                                      baselineVector = cached.baselineVector;
+                                    } else {
+                                      console.log('No cache or cache loading, fetching from API...');
+                                      // Show loading state
+                                      setSentimentTooltip({
+                                        sector: item.sector,
+                                        baselineVector: null, // Will show loading
+                                        loading: true,
+                                        x: tooltipX,
+                                        y: e.clientY,
+                                        positionAbove: positionAbove
+                                      });
+                                      
+                                      // Fetch the data
+                                      console.log('Calling fetchSectorSentimentData for sector:', item.sector);
+                                      const fetchedVector = await fetchSectorSentimentData(item.sector);
+                                      console.log('Fetched vector result:', fetchedVector);
+                                      
+                                      if (fetchedVector) {
+                                        baselineVector = fetchedVector;
+                                        setSentimentTooltip({
+                                          sector: item.sector,
+                                          baselineVector: fetchedVector,
+                                          loading: false,
+                                          x: tooltipX,
+                                          y: e.clientY,
+                                          positionAbove: positionAbove
+                                        });
+                                      } else {
+                                        // Fetch failed or was already loading, check state via functional update
+                                        setSectorSentimentData(currentState => {
+                                          const stateForSector = currentState[normalizedSector];
+                                          if (stateForSector && stateForSector.baselineVector) {
+                                            // Data is now available, update tooltip
+                                            setSentimentTooltip({
+                                              sector: item.sector,
+                                              baselineVector: stateForSector.baselineVector,
+                                              loading: false,
+                                              x: tooltipX,
+                                              y: e.clientY,
+                                              positionAbove: positionAbove
+                                            });
+                                          } else {
+                                            // Still no data, show error with default
+                                            setSentimentTooltip({
+                                              sector: item.sector,
+                                              baselineVector: item.baselineVector,
+                                              loading: false,
+                                              error: stateForSector?.error || 'Failed to fetch data',
+                                              x: tooltipX,
+                                              y: e.clientY,
+                                              positionAbove: positionAbove
+                                            });
+                                          }
+                                          return currentState; // No state change, just using for access
+                                        });
+                                      }
+                                      return;
+                                    }
+                                  }
+                                  
+                                  // For non-Technology sectors or if data is already available, show immediately
                                   setSentimentTooltip({
                                     sector: item.sector,
-                                    baselineVector: item.baselineVector,
+                                    baselineVector: baselineVector,
+                                    loading: false,
                                     x: tooltipX,
                                     y: e.clientY,
                                     positionAbove: positionAbove
@@ -3034,11 +3339,26 @@ function Dashboard() {
                               <div className="tooltip-sector">{sentimentTooltip.sector}</div>
                               <div className="tooltip-baseline">
                                 <div className="baseline-label">Baseline (v₀):</div>
-                                <div className="baseline-vector">
-                                  <div className="baseline-item"><span className="baseline-key">Accuracy</span><span className="baseline-value">{(sentimentTooltip.baselineVector?.[0] ?? 0).toFixed(3)}</span></div>
-                                  <div className="baseline-item"><span className="baseline-key">Precision</span><span className="baseline-value">{(sentimentTooltip.baselineVector?.[1] ?? 0).toFixed(3)}</span></div>
-                                  <div className="baseline-item"><span className="baseline-key">Recall</span><span className="baseline-value">{(sentimentTooltip.baselineVector?.[2] ?? 0).toFixed(3)}</span></div>
-                                </div>
+                                {sentimentTooltip.loading ? (
+                                  <div className="baseline-loading">Loading...</div>
+                                ) : sentimentTooltip.error ? (
+                                  <div className="baseline-error">
+                                    <div>{sentimentTooltip.error}</div>
+                                    {sentimentTooltip.baselineVector && (
+                                      <div className="baseline-fallback" style={{ marginTop: '8px', fontSize: '0.85em', opacity: 0.7 }}>
+                                        Using default values
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : sentimentTooltip.baselineVector ? (
+                                  <div className="baseline-vector">
+                                    <div className="baseline-item"><span className="baseline-key">Sentiment Value</span><span className="baseline-value">{(sentimentTooltip.baselineVector[0] ?? 0).toFixed(3)}</span></div>
+                                    <div className="baseline-item"><span className="baseline-key">Precision</span><span className="baseline-value">{(sentimentTooltip.baselineVector[1] ?? 0).toFixed(3)}</span></div>
+                                    <div className="baseline-item"><span className="baseline-key">Recall</span><span className="baseline-value">{(sentimentTooltip.baselineVector[2] ?? 0).toFixed(3)}</span></div>
+                                  </div>
+                                ) : (
+                                  <div className="baseline-error">No data available</div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -3254,7 +3574,13 @@ function Dashboard() {
                         <tbody>
                           {thesisData.sectors.map((item, index) => {
                             const internalBaseline = item.internalSentimentBaseline || [0,0,0];
-                            const internalToday = item.internalSentimentToday || [0,0,0];
+                            // Use API-fetched today vector if available for supported sectors
+                            const normalizedSector = item.sector.toLowerCase();
+                            const sectorsWithAPI = ['technology', 'consumer', 'financial', 'utilities'];
+                            const cachedAPIData = sectorSentimentData[normalizedSector];
+                            const internalToday = (sectorsWithAPI.includes(normalizedSector) && cachedAPIData && cachedAPIData.baselineVector && !cachedAPIData.loading)
+                              ? cachedAPIData.baselineVector  // Use API v0 data as today vector
+                              : (item.internalSentimentToday || [0,0,0]);  // Fallback to hardcoded
                             const externalBaseline = item.externalSentimentBaseline || [0,0,0];
                             const externalToday = item.externalSentimentToday || [0,0,0];
                             
@@ -3283,7 +3609,13 @@ function Dashboard() {
                                 <td>
                                   <div 
                                     className="sentiment-drift-cell clickable-sentiment-drift"
-                                    onClick={(e) => handleSentimentDriftClick(e, item.sector, 'internal', internalBaseline, internalToday)}
+                                    onClick={(e) => {
+                                      // Use API-fetched today vector if available
+                                      const apiTodayVector = (sectorsWithAPI.includes(normalizedSector) && cachedAPIData && cachedAPIData.baselineVector && !cachedAPIData.loading)
+                                        ? cachedAPIData.baselineVector
+                                        : internalToday;
+                                      handleSentimentDriftClick(e, item.sector, 'internal', internalBaseline, apiTodayVector);
+                                    }}
                                     style={{ cursor: 'pointer' }}
                                   >
                                     <div className={`cos-score ${internalCos >= 0.9 ? 'high' : internalCos >= 0.75 ? 'med' : 'low'}`}>
@@ -3355,37 +3687,47 @@ function Dashboard() {
                       </div>
                       <div className="tooltip-baseline">
                         <div className="baseline-label">Baseline (v₀)</div>
-                        <div className="baseline-vector">
-                          <div className="baseline-item">
-                            <span className="baseline-key">Accuracy:</span>
-                            <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[0] ?? 0).toFixed(2)}</span>
+                        {sentimentDriftTooltip.baselineVector ? (
+                          <div className="baseline-vector">
+                            <div className="baseline-item">
+                              <span className="baseline-key">Sentiment Value:</span>
+                              <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[0] ?? 0).toFixed(2)}</span>
+                            </div>
+                            <div className="baseline-item">
+                              <span className="baseline-key">Precision:</span>
+                              <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[1] ?? 0).toFixed(2)}</span>
+                            </div>
+                            <div className="baseline-item">
+                              <span className="baseline-key">Recall:</span>
+                              <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[2] ?? 0).toFixed(2)}</span>
+                            </div>
                           </div>
-                          <div className="baseline-item">
-                            <span className="baseline-key">Precision:</span>
-                            <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[1] ?? 0).toFixed(2)}</span>
-                          </div>
-                          <div className="baseline-item">
-                            <span className="baseline-key">Recall:</span>
-                            <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[2] ?? 0).toFixed(2)}</span>
-                          </div>
-                        </div>
+                        ) : (
+                          <div className="baseline-error">No data available</div>
+                        )}
                       </div>
                       <div className="tooltip-baseline" style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
                         <div className="baseline-label">Today (vₜ)</div>
-                        <div className="baseline-vector">
-                          <div className="baseline-item">
-                            <span className="baseline-key">Accuracy:</span>
-                            <span className="baseline-value">{(sentimentDriftTooltip.todayVector[0] ?? 0).toFixed(2)}</span>
+                        {sentimentDriftTooltip.loading ? (
+                          <div className="baseline-loading">Loading...</div>
+                        ) : sentimentDriftTooltip.todayVector ? (
+                          <div className="baseline-vector">
+                            <div className="baseline-item">
+                              <span className="baseline-key">Sentiment Value:</span>
+                              <span className="baseline-value">{(sentimentDriftTooltip.todayVector[0] ?? 0).toFixed(2)}</span>
+                            </div>
+                            <div className="baseline-item">
+                              <span className="baseline-key">Precision:</span>
+                              <span className="baseline-value">{(sentimentDriftTooltip.todayVector[1] ?? 0).toFixed(2)}</span>
+                            </div>
+                            <div className="baseline-item">
+                              <span className="baseline-key">Recall:</span>
+                              <span className="baseline-value">{(sentimentDriftTooltip.todayVector[2] ?? 0).toFixed(2)}</span>
+                            </div>
                           </div>
-                          <div className="baseline-item">
-                            <span className="baseline-key">Precision:</span>
-                            <span className="baseline-value">{(sentimentDriftTooltip.todayVector[1] ?? 0).toFixed(2)}</span>
-                          </div>
-                          <div className="baseline-item">
-                            <span className="baseline-key">Recall:</span>
-                            <span className="baseline-value">{(sentimentDriftTooltip.todayVector[2] ?? 0).toFixed(2)}</span>
-                          </div>
-                        </div>
+                        ) : (
+                          <div className="baseline-error">No data available</div>
+                        )}
                       </div>
                     </div>
                     {(() => {
