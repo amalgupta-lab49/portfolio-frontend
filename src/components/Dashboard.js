@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import axios from 'axios';
 import ShowReasoning from './ShowReasoning';
@@ -198,6 +198,14 @@ function Dashboard() {
   const [isChatExpanded, setIsChatExpanded] = useState(false);
   const [wsConnection, setWsConnection] = useState(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const streamingIntervalRef = useRef(null); // Ref for streaming interval
+  const streamingWordsRef = useRef([]); // Ref for words to stream
+  const streamingMessageIndexRef = useRef(null); // Ref for message index being streamed
+  const [isStreaming, setIsStreaming] = useState(false); // Track if streaming is active
+  const [isPaused, setIsPaused] = useState(false); // Track if streaming is paused
+  const userScrolledUpRef = useRef(false); // Track if user has scrolled up
+  const currentCharIndexRef = useRef(0); // Track current character index for resume
+  const isProgrammaticScrollRef = useRef(false); // Track if scroll is programmatic
   const [showHoldingsPopup, setShowHoldingsPopup] = useState(false);
   const [expandedHoldingId, setExpandedHoldingId] = useState(null);
   const [redFlagTooltip, setRedFlagTooltip] = useState(null); // { holdingId: number, flagIndex: number, x: number, y: number }
@@ -971,15 +979,259 @@ function Dashboard() {
     }
   }, [thinkingText, thinkingEntry]);
 
-  // Auto-scroll chat messages to bottom
+  // Auto-scroll chat messages to bottom (only if user hasn't scrolled up)
   useEffect(() => {
     if (chatMessages.length > 0) {
       const messagesElement = document.querySelector('.chatbot-messages');
       if (messagesElement) {
-        messagesElement.scrollTop = messagesElement.scrollHeight;
+        const scrollHeight = messagesElement.scrollHeight;
+        const clientHeight = messagesElement.clientHeight;
+        
+        // Only attempt to scroll if content actually overflows
+        if (scrollHeight > clientHeight) {
+          // Check if user is near the bottom (within 150px) before auto-scrolling
+          const distanceFromBottom = scrollHeight - messagesElement.scrollTop - clientHeight;
+          const isNearBottom = distanceFromBottom < 150;
+          // Only auto-scroll if user hasn't manually scrolled up AND is near bottom
+          if (!userScrolledUpRef.current && isNearBottom) {
+            // Use requestAnimationFrame to ensure smooth scrolling
+            requestAnimationFrame(() => {
+              isProgrammaticScrollRef.current = true;
+              messagesElement.scrollTop = scrollHeight;
+            });
+          }
+        } else {
+          // Content fits in viewport, no need to scroll
+          // Reset scroll state to allow future scrolling when content grows
+          userScrolledUpRef.current = false;
+        }
       }
     }
   }, [chatMessages]);
+
+  // Track user scroll position
+  useEffect(() => {
+    if (!showChatbot) return;
+    
+    const messagesElement = document.querySelector('.chatbot-messages');
+    if (!messagesElement) return;
+
+    let scrollTimeout = null;
+    const handleScroll = () => {
+      // Don't update userScrolledUpRef if this is a programmatic scroll
+      if (isProgrammaticScrollRef.current) {
+        isProgrammaticScrollRef.current = false;
+        return;
+      }
+      
+      // Debounce scroll handling to prevent flickering
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+      
+      scrollTimeout = setTimeout(() => {
+        const scrollHeight = messagesElement.scrollHeight;
+        const clientHeight = messagesElement.clientHeight;
+        
+        // Only check scroll position if content actually overflows
+        if (scrollHeight > clientHeight) {
+          const distanceFromBottom = scrollHeight - messagesElement.scrollTop - clientHeight;
+          const isAtBottom = distanceFromBottom < 150;
+          
+          if (isStreaming) {
+            // During streaming: be more lenient with thresholds to allow manual scrolling
+            // Only mark as scrolled up if user is far from bottom (>300px)
+            if (distanceFromBottom > 300) {
+              userScrolledUpRef.current = true;
+            } else if (distanceFromBottom < 100) {
+              // User scrolled back to bottom
+              userScrolledUpRef.current = false;
+            }
+            // Between 100-300px: keep current state to prevent flickering
+          } else {
+            // When not streaming: normal behavior
+            if (distanceFromBottom > 200) {
+              userScrolledUpRef.current = true;
+            } else if (isAtBottom) {
+              userScrolledUpRef.current = false;
+            }
+          }
+        } else {
+          // Content fits in viewport, user can't scroll up
+          userScrolledUpRef.current = false;
+        }
+      }, 100); // 100ms debounce for smoother handling
+    };
+
+    messagesElement.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+      messagesElement.removeEventListener('scroll', handleScroll);
+    };
+  }, [showChatbot, isStreaming]);
+
+  // Stop/pause streaming function
+  const handleStopStreaming = () => {
+    if (streamingIntervalRef.current) {
+      clearInterval(streamingIntervalRef.current);
+      streamingIntervalRef.current = null;
+    }
+    setIsStreaming(false);
+    setIsPaused(true);
+  };
+
+  // Resume streaming function
+  const handleResumeStreaming = () => {
+    if (streamingMessageIndexRef.current === null || streamingWordsRef.current.length === 0) {
+      return;
+    }
+
+    // Clear any existing interval
+    if (streamingIntervalRef.current) {
+      clearInterval(streamingIntervalRef.current);
+      streamingIntervalRef.current = null;
+    }
+
+    setIsStreaming(true);
+    setIsPaused(false);
+
+    // Resume streaming from where we left off
+    let charIndex = currentCharIndexRef.current;
+    streamingIntervalRef.current = setInterval(() => {
+      if (charIndex < streamingWordsRef.current.length) {
+        const currentText = streamingWordsRef.current.slice(0, charIndex + 1).join('');
+        setChatMessages((prev) => {
+          const msgIndex = streamingMessageIndexRef.current;
+          if (msgIndex !== null && msgIndex < prev.length) {
+            return prev.map((msg, idx) => {
+              if (idx === msgIndex && msg.role === 'assistant' && !msg.type) {
+                return { ...msg, content: currentText, isStreaming: true };
+              }
+              return msg;
+            });
+          }
+          return prev;
+        });
+        
+        // Removed auto-scroll during streaming to prevent text from sticking to bottom
+        // User can manually scroll if they want to see the streaming text
+        
+        charIndex++;
+        currentCharIndexRef.current = charIndex;
+      } else {
+        // Streaming complete
+        if (streamingIntervalRef.current) {
+          clearInterval(streamingIntervalRef.current);
+          streamingIntervalRef.current = null;
+        }
+        setIsStreaming(false);
+        setIsPaused(false);
+        // Remove isStreaming flag
+        setChatMessages((prev) => {
+          const msgIndex = streamingMessageIndexRef.current;
+          if (msgIndex !== null && msgIndex < prev.length) {
+            return prev.map((msg, idx) => {
+              if (idx === msgIndex && msg.role === 'assistant' && !msg.type) {
+                const { isStreaming, ...rest } = msg;
+                return rest;
+              }
+              return msg;
+            });
+          }
+          return prev;
+        });
+        streamingMessageIndexRef.current = null;
+        streamingWordsRef.current = [];
+        currentCharIndexRef.current = 0;
+      }
+    }, 25); // 25ms per letter
+  };
+
+  // Normalize assistant content into messages, with special handling for [PLAN] prefix
+  const handleAssistantContent = (text) => {
+    if (!text || typeof text !== 'string') {
+      console.log('[handleAssistantContent] Invalid text:', text);
+      return;
+    }
+
+    const trimmed = text.trim();
+    console.log('[handleAssistantContent] Received text (first 200 chars):', trimmed.substring(0, 200));
+    console.log('[handleAssistantContent] Full text length:', trimmed.length);
+    console.log('[handleAssistantContent] Starts with [PLAN]:', trimmed.startsWith('[PLAN]'));
+
+    // If no [PLAN] tag, treat as a normal assistant message
+    if (!trimmed.startsWith('[PLAN]')) {
+      console.log('[handleAssistantContent] No [PLAN] tag, treating as normal message');
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: text
+        }
+      ]);
+      return;
+    }
+
+    // Strip the [PLAN] tag
+    const withoutTag = trimmed.replace(/^\s*\[PLAN\]\s*/i, '');
+    console.log('[handleAssistantContent] After removing [PLAN] tag (first 200 chars):', withoutTag.substring(0, 200));
+
+    // Try to split plan vs answer for one-line formats like:
+    // [PLAN] intent: ... | tools: ... | symbols: NFLX  The research analysis...
+    let planText = '';
+    let answerText = '';
+
+    const doubleSpaceMatch = withoutTag.match(/^(.*?\S)(\s{2,})([\s\S]*)$/);
+    console.log('[handleAssistantContent] Double space match:', !!doubleSpaceMatch);
+    if (doubleSpaceMatch) {
+      planText = (doubleSpaceMatch[1] || '').trim();
+      answerText = (doubleSpaceMatch[3] || '').trim();
+      console.log('[handleAssistantContent] Split on double space:');
+      console.log('  Plan text:', planText);
+      console.log('  Answer text (first 100 chars):', answerText.substring(0, 100));
+    } else {
+      // Fallback: split on first blank line if the backend uses newlines
+      const segments = withoutTag.split(/\n\s*\n/);
+      planText = (segments[0] || '').trim();
+      answerText = segments.slice(1).join('\n\n').trim();
+      console.log('[handleAssistantContent] Split on blank line:');
+      console.log('  Segments count:', segments.length);
+      console.log('  Plan text:', planText);
+      console.log('  Answer text (first 100 chars):', answerText.substring(0, 100));
+    }
+
+    console.log('[handleAssistantContent] Final split:');
+    console.log('  Plan text length:', planText.length);
+    console.log('  Answer text length:', answerText.length);
+    console.log('  Will create plan message:', !!planText);
+    console.log('  Will create answer message:', !!answerText);
+
+    setChatMessages((prev) => {
+      const next = [...prev];
+
+      if (planText) {
+        console.log('[handleAssistantContent] Adding plan message');
+        next.push({
+          role: 'assistant',
+          type: 'plan',
+          content: planText
+        });
+      }
+
+      if (answerText) {
+        console.log('[handleAssistantContent] Adding answer message');
+        next.push({
+          role: 'assistant',
+          content: answerText
+        });
+      }
+
+      console.log('[handleAssistantContent] Total messages after adding:', next.length);
+      return next;
+    });
+  };
 
   // Close chatbot when agent mode is turned off
   useEffect(() => {
@@ -987,6 +1239,16 @@ function Dashboard() {
       setShowChatbot(false);
     }
   }, [isAgentMode, showChatbot]);
+
+  // Cleanup streaming interval on unmount
+  useEffect(() => {
+    return () => {
+      if (streamingIntervalRef.current) {
+        clearInterval(streamingIntervalRef.current);
+        streamingIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // Initialize WebSocket connection
   const initializeWebSocket = useCallback(() => {
@@ -1026,36 +1288,158 @@ function Dashboard() {
       };
 
       ws.onmessage = (event) => {
+        console.log('[WebSocket] Raw event.data type:', typeof event.data);
+        console.log('[WebSocket] Raw event.data (first 500 chars):', event.data.substring(0, 500));
+        
         try {
           const data = JSON.parse(event.data);
-          console.log('WebSocket message received:', data);
-          
-          // Handle different message types
-          if (data.type === 'message' || data.message) {
-            const messageContent = data.message || data.content || data.text || JSON.stringify(data);
-            setChatMessages(prev => [...prev, {
-              role: 'assistant',
-              content: messageContent
-            }]);
-          } else if (data.content) {
-            setChatMessages(prev => [...prev, {
-              role: 'assistant',
-              content: data.content
-            }]);
+          console.log('[WebSocket] Parsed JSON data:', data);
+
+          // Handle the new response format with metadata.plan_summary
+          if (data.type === 'message' && data.metadata && data.metadata.plan_summary) {
+            const planSummary = data.metadata.plan_summary;
+            
+            // Format plan summary as: intent: X | tools: Y | symbols: Z
+            const planParts = [];
+            if (planSummary.intent) {
+              planParts.push(`intent: ${planSummary.intent}`);
+            }
+            if (planSummary.tools && Array.isArray(planSummary.tools)) {
+              planParts.push(`tools: ${planSummary.tools.join(', ')}`);
+            }
+            if (planSummary.symbols && Array.isArray(planSummary.symbols)) {
+              planParts.push(`symbols: ${planSummary.symbols.join(', ')}`);
+            }
+            const planText = planParts.join(' | ');
+
+            // Get the content
+            const content = data.content || '';
+
+            console.log('[WebSocket] Plan summary:', planText);
+            console.log('[WebSocket] Content length:', content.length);
+
+            // Add plan message if we have plan text
+            if (planText) {
+              setChatMessages((prev) => {
+                // Check if plan message already exists (avoid duplicates)
+                const hasPlan = prev.some(msg => msg.type === 'plan' && msg.content === planText);
+                if (hasPlan) {
+                  return prev;
+                }
+                return [...prev, {
+                  role: 'assistant',
+                  type: 'plan',
+                  content: planText
+                }];
+              });
+            }
+
+            // Handle streaming content letter-by-letter
+            if (content) {
+              // Clear any existing streaming interval
+              if (streamingIntervalRef.current) {
+                clearInterval(streamingIntervalRef.current);
+                streamingIntervalRef.current = null;
+              }
+
+              // Split content into characters (preserving all characters including spaces, newlines, etc.)
+              const characters = content.split('');
+              streamingWordsRef.current = characters;
+              setIsStreaming(true);
+              userScrolledUpRef.current = false; // Reset scroll position when new streaming starts
+              
+              // Add empty answer message first
+              setChatMessages((prev) => {
+                // Check if answer message already exists
+                const lastMsg = prev[prev.length - 1];
+                if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.type && lastMsg.isStreaming) {
+                  // Update existing streaming message
+                  streamingMessageIndexRef.current = prev.length - 1;
+                  return prev;
+                }
+                // Add new streaming message
+                const newIndex = prev.length;
+                streamingMessageIndexRef.current = newIndex;
+                return [...prev, {
+                  role: 'assistant',
+                  content: '',
+                  isStreaming: true
+                }];
+              });
+
+              // Start streaming letters one by one
+              currentCharIndexRef.current = 0;
+              let charIndex = 0;
+              streamingIntervalRef.current = setInterval(() => {
+                if (charIndex < streamingWordsRef.current.length) {
+                  const currentText = streamingWordsRef.current.slice(0, charIndex + 1).join('');
+                  setChatMessages((prev) => {
+                    const msgIndex = streamingMessageIndexRef.current;
+                    if (msgIndex !== null && msgIndex < prev.length) {
+                      return prev.map((msg, idx) => {
+                        if (idx === msgIndex && msg.role === 'assistant' && !msg.type) {
+                          return { ...msg, content: currentText, isStreaming: true };
+                        }
+                        return msg;
+                      });
+                    }
+                    return prev;
+                  });
+                  
+                  // Removed auto-scroll during streaming to prevent text from sticking to bottom
+                  // User can manually scroll if they want to see the streaming text
+                  
+                  charIndex++;
+                  currentCharIndexRef.current = charIndex;
+                } else {
+                  // Streaming complete
+                  if (streamingIntervalRef.current) {
+                    clearInterval(streamingIntervalRef.current);
+                    streamingIntervalRef.current = null;
+                  }
+                  setIsStreaming(false);
+                  setIsPaused(false);
+                  // Remove isStreaming flag
+                  setChatMessages((prev) => {
+                    const msgIndex = streamingMessageIndexRef.current;
+                    if (msgIndex !== null && msgIndex < prev.length) {
+                      return prev.map((msg, idx) => {
+                        if (idx === msgIndex && msg.role === 'assistant' && !msg.type) {
+                          const { isStreaming, ...rest } = msg;
+                          return rest;
+                        }
+                        return msg;
+                      });
+                    }
+                    return prev;
+                  });
+                  streamingMessageIndexRef.current = null;
+                  streamingWordsRef.current = [];
+                  currentCharIndexRef.current = 0;
+                }
+              }, 25); // 25ms per letter (adjust for speed - faster than word-by-word)
+            }
           } else {
-            // Fallback: use the raw data
-            setChatMessages(prev => [...prev, {
-              role: 'assistant',
-              content: typeof data === 'string' ? data : JSON.stringify(data)
-            }]);
+            // Fallback: handle old format or plain text
+            let rawContent = null;
+            if (data.type === 'message' || data.message) {
+              rawContent = data.message || data.content || data.text || JSON.stringify(data);
+            } else if (typeof data.content === 'string') {
+              rawContent = data.content;
+            } else if (typeof data === 'string') {
+              rawContent = data;
+            } else {
+              rawContent = JSON.stringify(data);
+            }
+
+            console.log('[WebSocket] Extracted rawContent (first 200 chars):', rawContent ? rawContent.substring(0, 200) : 'null');
+            handleAssistantContent(rawContent);
           }
         } catch (err) {
-          console.error('Error parsing WebSocket message:', err);
+          console.error('[WebSocket] Error parsing JSON, treating as plain text:', err);
+          console.log('[WebSocket] Using event.data as plain text (first 200 chars):', event.data.substring(0, 200));
           // If not JSON, treat as plain text
-          setChatMessages(prev => [...prev, {
-            role: 'assistant',
-            content: event.data
-          }]);
+          handleAssistantContent(event.data);
         }
       };
 
@@ -1098,18 +1482,22 @@ function Dashboard() {
       setWsConnection(ws);
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
-      setChatMessages(prev => [...prev, {
-        role: 'assistant',
+        setChatMessages(prev => [...prev, { 
+          role: 'assistant', 
         content: 'Failed to connect to chat server. Please check your connection.'
       }]);
     }
   }, []);
 
-  // Clean up WebSocket on unmount or when chatbot closes
+  // Clean up WebSocket and streaming on unmount or when chatbot closes
   useEffect(() => {
     return () => {
       if (wsConnection) {
         wsConnection.close();
+      }
+      if (streamingIntervalRef.current) {
+        clearInterval(streamingIntervalRef.current);
+        streamingIntervalRef.current = null;
       }
     };
   }, [wsConnection]);
@@ -1128,7 +1516,7 @@ function Dashboard() {
     
     // Add user message to chat
     setChatMessages(prev => [...prev, { role: 'user', content: message }]);
-    setChatInput('');
+      setChatInput('');
 
     // Send message via WebSocket if connected
     if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
@@ -1166,6 +1554,17 @@ function Dashboard() {
   const handleCloseChatbot = () => {
     setShowChatbot(false);
     setIsChatExpanded(false);
+    // Clear streaming interval
+    if (streamingIntervalRef.current) {
+      clearInterval(streamingIntervalRef.current);
+      streamingIntervalRef.current = null;
+    }
+    streamingWordsRef.current = [];
+    streamingMessageIndexRef.current = null;
+    currentCharIndexRef.current = 0;
+    setIsStreaming(false);
+    setIsPaused(false);
+    userScrolledUpRef.current = false;
     // Close WebSocket connection when closing chatbot
     if (wsConnection) {
       wsConnection.close();
@@ -1191,7 +1590,7 @@ function Dashboard() {
     setContextMenu(null);
     setBiasPopover(null);
     setBiasInfoPopover(null);
-    setChatInput(content);
+    setChatInput(''); // Don't pre-fill the input with content
     setShowChatbot(true);
     setChatMessages([]);
     // Initialize WebSocket connection when opening chatbot
@@ -1321,9 +1720,9 @@ function Dashboard() {
         finalTodayVector = cached.baselineVector;
       } else {
         // Show loading state
-        setSentimentDriftTooltip({
-          sector,
-          type,
+    setSentimentDriftTooltip({
+      sector,
+      type,
           baselineVector: finalBaselineVector,
           todayVector: null, // Will show loading
           loading: true,
@@ -1441,11 +1840,33 @@ function Dashboard() {
               <p>Ask me anything about this analysis...</p>
             </div>
           ) : (
-            chatMessages.map((msg, index) => (
-              <div key={index} className={`chat-message ${msg.role}`}>
-                <div className="message-content">{msg.content}</div>
+            chatMessages.map((msg, index) => {
+              console.log(`[renderChatbot] Rendering message ${index}:`, {
+                role: msg.role,
+                type: msg.type,
+                contentLength: msg.content?.length,
+                contentPreview: msg.content?.substring(0, 50)
+              });
+              return (
+                <div
+                  key={index}
+                  className={`chat-message ${msg.role} ${
+                    msg.type === 'plan' ? 'plan-message' : ''
+                  }`}
+                >
+                  {msg.type === 'plan' && (
+                    <div className="message-label">Plan</div>
+                  )}
+                <div 
+                  className="message-content"
+                  tabIndex={-1}
+                  style={{ outline: 'none' }}
+                >
+                  {msg.content}
+                </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
         <div className={`chatbot-input-container ${isChatExpanded ? 'expanded' : ''}`}>
@@ -1458,6 +1879,30 @@ function Dashboard() {
             rows={isChatExpanded ? 8 : 3}
           />
           <div className="chatbot-input-actions">
+            {isStreaming && (
+              <button
+                className="chatbot-stop-btn"
+                onClick={handleStopStreaming}
+                title="Stop streaming"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="6" y="6" width="12" height="12" rx="2"/>
+                </svg>
+                Stop
+              </button>
+            )}
+            {isPaused && !isStreaming && (
+              <button
+                className="chatbot-resume-btn"
+                onClick={handleResumeStreaming}
+                title="Resume streaming"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Resume
+              </button>
+            )}
             <button
               className="chatbot-expand-btn"
               onClick={() => setIsChatExpanded(!isChatExpanded)}
@@ -3452,9 +3897,9 @@ function Dashboard() {
                                             });
                                           } else {
                                             // Still no data, show error with default
-                                            setSentimentTooltip({
-                                              sector: item.sector,
-                                              baselineVector: item.baselineVector,
+                                  setSentimentTooltip({
+                                    sector: item.sector,
+                                    baselineVector: item.baselineVector,
                                               loading: false,
                                               error: stateForSector?.error || 'Failed to fetch data',
                                               x: tooltipX,
@@ -3520,11 +3965,11 @@ function Dashboard() {
                                     )}
                                   </div>
                                 ) : sentimentTooltip.baselineVector ? (
-                                  <div className="baseline-vector">
+                                <div className="baseline-vector">
                                     <div className="baseline-item"><span className="baseline-key">Sentiment Value</span><span className="baseline-value">{(sentimentTooltip.baselineVector[0] ?? 0).toFixed(3)}</span></div>
                                     <div className="baseline-item"><span className="baseline-key">Precision</span><span className="baseline-value">{(sentimentTooltip.baselineVector[1] ?? 0).toFixed(3)}</span></div>
                                     <div className="baseline-item"><span className="baseline-key">Recall</span><span className="baseline-value">{(sentimentTooltip.baselineVector[2] ?? 0).toFixed(3)}</span></div>
-                                  </div>
+                                </div>
                                 ) : (
                                   <div className="baseline-error">No data available</div>
                                 )}
@@ -3857,20 +4302,20 @@ function Dashboard() {
                       <div className="tooltip-baseline">
                         <div className="baseline-label">Baseline (v₀)</div>
                         {sentimentDriftTooltip.baselineVector ? (
-                          <div className="baseline-vector">
-                            <div className="baseline-item">
+                        <div className="baseline-vector">
+                          <div className="baseline-item">
                               <span className="baseline-key">Sentiment Value:</span>
-                              <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[0] ?? 0).toFixed(2)}</span>
-                            </div>
-                            <div className="baseline-item">
-                              <span className="baseline-key">Precision:</span>
-                              <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[1] ?? 0).toFixed(2)}</span>
-                            </div>
-                            <div className="baseline-item">
-                              <span className="baseline-key">Recall:</span>
-                              <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[2] ?? 0).toFixed(2)}</span>
-                            </div>
+                            <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[0] ?? 0).toFixed(2)}</span>
                           </div>
+                          <div className="baseline-item">
+                            <span className="baseline-key">Precision:</span>
+                            <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[1] ?? 0).toFixed(2)}</span>
+                          </div>
+                          <div className="baseline-item">
+                            <span className="baseline-key">Recall:</span>
+                            <span className="baseline-value">{(sentimentDriftTooltip.baselineVector[2] ?? 0).toFixed(2)}</span>
+                          </div>
+                        </div>
                         ) : (
                           <div className="baseline-error">No data available</div>
                         )}
@@ -3880,20 +4325,20 @@ function Dashboard() {
                         {sentimentDriftTooltip.loading ? (
                           <div className="baseline-loading">Loading...</div>
                         ) : sentimentDriftTooltip.todayVector ? (
-                          <div className="baseline-vector">
-                            <div className="baseline-item">
+                        <div className="baseline-vector">
+                          <div className="baseline-item">
                               <span className="baseline-key">Sentiment Value:</span>
-                              <span className="baseline-value">{(sentimentDriftTooltip.todayVector[0] ?? 0).toFixed(2)}</span>
-                            </div>
-                            <div className="baseline-item">
-                              <span className="baseline-key">Precision:</span>
-                              <span className="baseline-value">{(sentimentDriftTooltip.todayVector[1] ?? 0).toFixed(2)}</span>
-                            </div>
-                            <div className="baseline-item">
-                              <span className="baseline-key">Recall:</span>
-                              <span className="baseline-value">{(sentimentDriftTooltip.todayVector[2] ?? 0).toFixed(2)}</span>
-                            </div>
+                            <span className="baseline-value">{(sentimentDriftTooltip.todayVector[0] ?? 0).toFixed(2)}</span>
                           </div>
+                          <div className="baseline-item">
+                            <span className="baseline-key">Precision:</span>
+                            <span className="baseline-value">{(sentimentDriftTooltip.todayVector[1] ?? 0).toFixed(2)}</span>
+                          </div>
+                          <div className="baseline-item">
+                            <span className="baseline-key">Recall:</span>
+                            <span className="baseline-value">{(sentimentDriftTooltip.todayVector[2] ?? 0).toFixed(2)}</span>
+                          </div>
+                        </div>
                         ) : (
                           <div className="baseline-error">No data available</div>
                         )}
